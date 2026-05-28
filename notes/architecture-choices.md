@@ -125,9 +125,11 @@ That shift is why an edge-CV platform story matters, and why this demo deliberat
 The official [Cash Counter app](https://apps.apple.com/us/app/roboflow-cash-counter/id1633812788) is a useful reference for the patterns Roboflow themselves think work:
 
 - **De-emphasized bounding boxes** — subtle highlights, not in-your-face overlays
-- **Big readout of the business metric** — for Cash Counter it's total cash; for this demo it's `crops / weeds / weed-pressure %`
-- **"Incorrect Detection?" feedback button** — wired to `rf.uploadImage()` so user corrections flow back to the dataset
-- **FPS counter** as a corner overlay — for technical credibility, not customer-facing
+- **Big readout of the business metric** — for Cash Counter it's total cash; here it's the **crop stand count** as the hero number, with the weed count shown but flagged as the *excluded* confounder (mirroring the breeding use case, where stand count is the decision and weeds are filtered out)
+- **"Incorrect Detection?" feedback button** — our *"Upload Incorrect Image"* button, wired to `rf.uploadImage()` so user corrections flow back to the dataset
+- **Status readout** — a top-centre `MODE · FPS · latency` line (e.g. `EDGE · 23 FPS · 44 ms`) for technical credibility, rather than a bare corner FPS counter; it doubles as the live performance + backend indicator
+
+The one element that *isn't* from Cash Counter is the **Edge/Cloud segmented control** — a deliberate addition that switches the inference backend (on-device CoreML vs Roboflow hosted API) live, turning the edge-vs-cloud trade-off into something you can demonstrate on screen rather than just describe.
 
 The Cash Counter source isn't public, but these patterns are easy to replicate on top of [`roboflow-ios-starter`](https://github.com/roboflow/roboflow-ios-starter).
 
