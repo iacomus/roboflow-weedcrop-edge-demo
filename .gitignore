@@ -64,3 +64,6 @@ training/**/*.pth
 training/**/*.onnx
 training/**/*.mlpackage
 training/test_output/
+
+# Visual brainstorming companion (local only)
+.superpowers/
