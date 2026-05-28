@@ -39,6 +39,27 @@ This is the strongest possible validation of choosing RF-DETR: **YOLOv5 and old-
 ### The SA takeaway
 Deployment-path compatibility is a discovery-phase question, not a deployment-phase surprise. Systematic isolation (test the baseline, test a known-good model of the same architecture, research the error, get positive confirmation) is how you de-risk an edge-CV deal before committing the customer to a path. The 5-test debugging sequence here is exactly the diligence an SA does before telling a customer "yes, this will run on your hardware."
 
+## The export paywall, and the local-training pivot
+
+Once RF-DETR was confirmed loadable on-device, the remaining blocker was getting *our own* trained model into a bundle-able CoreML artifact. Two findings:
+
+1. **CoreML / weights export for a custom model is a paid (Core-plan) feature.** Attempting to download our model produced `ZipExtractionError` / "No relevant model files found in ZIP" — because no CoreML export had been built for the project. The free Public tier supports **hosted-API inference** for custom models, but not the downloadable on-device artifact.
+2. **The 14-day Premium Trial does *not* unlock it.** Starting the trial upgraded the plan and the "upgrade" prompt disappeared, but the weights-download still returned the plan-tier error. Export sits behind the paid tier, not the trial.
+
+### Build-vs-buy economics (the SA reframe)
+This is not a complaint — it's a pricing/packaging signal worth understanding as an SA. Roboflow gives away the expensive part (GPU training + the hosted-API endpoint) and monetises the artifact you need for **offline, zero-marginal-cost, on-device** deployment. That's a rational fence: the customers who need a bundled edge model are exactly the ones running at scale (a fleet of sprayers, thousands of devices) where per-inference hosted-API costs would dominate and a seat/plan fee is trivial. The free tier is sized for *prototyping the model*; the paid tier is sized for *shipping it to the edge*.
+
+### The pivot: open-source rfdetr
+Rather than pay for a portfolio demo — or, worse, try to intercept the paywalled download (which wouldn't work *and* would be a ToS violation and a terrible look when applying to Roboflow) — we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves. Same architecture, our own dataset, Roboflow's own open-source tooling: $0 and fully sanctioned. Details in [`training-setup.md`](./training-setup.md).
+
+One wrinkle the docs revealed, worth being precise about: **rfdetr exports ONNX and TFLite, not CoreML** ([export docs](https://rfdetr.roboflow.com/develop/learn/export/)), and modern `coremltools` dropped its ONNX→CoreML path. So "open-source → CoreML" isn't turnkey. **Verified in the package source:** `rfdetr/export/` ships `_onnx`, `_tensorrt`, and `_tflite` exporters — **no `_coreml` module** — and `export/main.py` describes itself verbatim as the *"CLI orchestrator for ONNX and TensorRT model export."* Tellingly, Roboflow's own 1.6 demo docs still *advertise* CoreML as an export target ("Export your model — ONNX, TensorRT, CoreML"), but the open package doesn't implement it: the RF-DETR→CoreML conversion they ship is **server-side, part of the paid platform**. So CoreML conversion is provably possible (they do it in production) — it just isn't in the free/open tier.
+
+**And we then did it ourselves, for $0.** A direct PyTorch→CoreML trace ([`../training/export_coreml.py`](../training/export_coreml.py)) produced `rfdetr_small.mlpackage` (55 MB, fp16), **validated on the macOS CoreML runtime** (loads + predicts; named `boxes`/`logits` outputs), matching the open model's outputs bit-for-bit. It took **four targeted patches**: (1) an int/bool cast override (coremltools `int(np.array([x]))` fails on modern numpy), (2) bicubic→bilinear for the DINOv2 pos-embed interp (coremltools supports neither bicubic variant), (3) flatten meshgrid inputs to 1-D, and (4) the hard one — a **rank-safe reimplementation of `MSDeformAttn.forward`**, because deformable attention's `(N,Lq,heads,levels,points,2)` sampling tensor is rank 6 and CoreML caps at rank 5. RF-DETR Small is single-scale (`n_levels=1`), so that level dim is redundant; the rewrite drops it (numerically identical, max diff 0.0). Full detail in [`training-setup.md`](./training-setup.md#export--getting-to-onnx-and-coreml).
+
+**The refined build-vs-buy line:** "can you?" is the wrong question — *yes*, the open stack reaches a working CoreML model that matches the paid output. The right question is "do you want to **own** it": this needed senior ML-engineering (an attention rewrite + numerical validation + version-specific converter patches) and is brittle across model config (`n_levels=1`), OS, and coremltools versions. The paid platform does that conversion turnkey and maintains it. ONNX Runtime Mobile remains the lower-effort on-device path if you'd rather not own the CoreML conversion. The GPU-training + export pipeline is in [`../training/train_colab.ipynb`](../training/train_colab.ipynb).
+
+The meta-point: an SA who has *personally* hit the export paywall and knows the open-source escape hatch can have an honest build-vs-buy conversation with a customer — when the platform is the right call, when self-hosting the open-source stack is, and where the line sits.
+
 ## Model architecture: RF-DETR
 
 Roboflow's iOS Swift SDK supports a restricted set of architectures for CoreML deployment: **RF-DETR**, **YoloLite**, and **Classification models**. YOLOv5 (which the pre-trained RF100 model uses) is **not** on that list.
@@ -74,6 +95,30 @@ Roboflow exposes three deployment paths. Each fits a different customer pattern:
 | **Native iOS SDK** (CoreML on Neural Engine) | 5-30ms | Only first-load | Zero per-inference | Mobile field deployment, offline-capable |
 
 For this demo, the native SDK is the right pick because the demo persona (field scout with phone) maps to that path. A customer evaluating Roboflow for industrial weed-detection robotics would more likely land on the Inference Server with a Jetson Orin. The fact that the same trained model can target all three paths is itself a sales point.
+
+### When is edge actually the right call? (the decision framework)
+
+The instinct "put the model on the device" isn't automatically correct — it's correct for a *specific* class of workload. The dividing line is **latency-coupled-to-action** and **connectivity**:
+
+| | **Edge (on-device / on-vehicle)** | **Cloud (hosted API / batch)** |
+|---|---|---|
+| **Drives an action in real time?** | Yes — a sprayer nozzle fires per-plant as the boom passes over it; a scout gets an instant in-viewfinder call | No — imagery is analysed *after* collection |
+| **Connectivity** | Must work with none (mid-field, no signal) | Reliable uplink available |
+| **Latency budget** | Milliseconds (the plant is moving past the nozzle) | Seconds-to-minutes is fine |
+| **Volume economics** | Thousands of devices → per-inference cloud cost is prohibitive; on-device is zero-marginal | Low/bursty volume → pay-per-call is cheaper than owning hardware |
+| **Canonical ag use case** | Real-time precision spraying ("see-and-spray"), live crop scouting | Post-flight drone-survey analysis, yield mapping, agronomic reporting |
+
+The clearest example comes from the plant-breeding engagement this demo is built around. Per-plant **counting** for hybrid selection was historically a *batch, cloud* workload — a tractor rig captures ~600 km of imagery per season, hauled back and processed weeks later. Re-pointing that same task to the **edge** (an in-cab Jetson counting as the rig drives) is the right move — but *not* because of millisecond latency, since counting fires no actuator. It's because:
+
+1. **The phenology window is irreversible.** Detecting a bad/occluded row on-rig lets the operator re-drive it *that day*, rather than discovering the gap weeks later after the growth stage has passed and the count is unrecoverable.
+2. **Volume economics.** Keeping the *count* instead of 600 km of raw imagery is far cheaper to move and store.
+3. **Connectivity.** A field station mid-plot has no reliable uplink, so hosted-API-per-frame isn't viable regardless.
+
+Edge wins on three of the four drivers — not the one (millisecond actuation) people reach for first. That discrimination is the point of the table above.
+
+Real-time **weed control** — a precision-spray robot firing a nozzle per plant as the boom passes — is the case where the millisecond driver *does* dominate. It's a different objective the same trained model can serve, but it was **not** the original engagement; conflating the two is exactly the use-case imprecision this framework exists to prevent.
+
+That shift is why an edge-CV platform story matters, and why this demo deliberately targets the on-device path rather than the (easier, free) hosted API.
 
 ## UI patterns borrowed from Roboflow's Cash Counter
 

@@ -56,3 +56,10 @@ training/*.mlpackage
 training/*.mlmodel
 training/*.log
 training/*.pid
+training/*.onnx
+training/colab/
+training/export/
+training/**/*.pth
+training/**/*.onnx
+training/**/*.mlpackage
+training/test_output/

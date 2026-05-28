@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Local RF-DETR Nano training on the weed-crop-aerial dataset (Apple Silicon / MPS).
+Local RF-DETR Small training on the weed-crop-aerial dataset (Apple Silicon / CPU).
 
 Why local: Roboflow's hosted training is free, but exporting the trained model
 to CoreML for on-device iOS deployment is a paid (Core-plan) feature. The
@@ -13,8 +13,10 @@ Run (from training/, with the venv active):
 import os
 import time
 
-# Some DETR ops (e.g. bicubic upsample) aren't implemented on MPS yet;
-# fall back to CPU for those rather than crashing.
+# We train on CPU, not MPS. MPS runs RF-DETR's heavy scatter_add ops (loss /
+# Hungarian matching) pathologically slowly — a single training step stalls for
+# minutes inside one synchronous Metal dispatch — so device="cpu" below.
+# The fallback flag is left as a harmless no-op in case device is flipped to "mps".
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
 from rfdetr import RFDETRSmall
@@ -32,7 +34,7 @@ def main():
     model.train(
         dataset_dir=DATASET_DIR,
         output_dir=OUTPUT_DIR,
-        device="mps",            # Apple Silicon GPU
+        device="cpu",            # MPS stalls on RF-DETR scatter_add; CPU is slower but completes
         epochs=50,               # early stopping will cut this short if it plateaus
         batch_size=4,            # safe for 16 GB unified memory
         grad_accum_steps=4,      # effective batch 16
