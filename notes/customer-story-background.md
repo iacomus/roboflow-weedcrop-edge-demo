@@ -69,4 +69,4 @@ See the main [README](../README.md) for the modern equivalent. The headline diff
 - The data flywheel (user-submitted corrections improving the model) collapses the centralized 5-user-consensus labeling project into a feedback button in the field-scout app
 - Architecture choice (RF-DETR vs YOLOv5 etc) determines edge-deployment paths — a decision made in days rather than the months it took to scope and build a custom annotation pipeline
 
-The point of this demo isn't that "Roboflow is faster than the bespoke version we built" — it's that **the customer conversation has fundamentally changed**. The SA isn't selling a model; they're selling a workflow that wraps the model. That's a different sales motion and a different evaluation framework.
+The point of this demo isn't that "Roboflow is faster than the bespoke version we built" — it's that **the customer conversation has fundamentally changed**. You're not selling a model; you're selling the workflow that wraps the model. That's a different sales motion and a different evaluation framework.

@@ -1,6 +1,6 @@
 # Architecture choices
 
-Notes on the technical decisions made while building this demo, with the reasoning a Solutions Architect would surface to a customer.
+Notes on the technical decisions made while building this demo, and the reasoning behind each — the kind you'd surface to a customer.
 
 ## Dataset: `roboflow-100/weed-crop-aerial`
 
@@ -27,17 +27,17 @@ Before relying on our own model, I systematically tested the iOS SDK's dynamic m
 | `glasses-detection-zkmto` v2 (blog tutorial) | RF-DETR | ✅ **`MODEL LOADED OK modelType=rfdetr-nano`** |
 
 ### Root cause
-The `wireType` error is a **known, long-standing Roboflow Swift SDK bug** in the dynamic download→extract→parse pipeline — reported in [roboflow/external-bugtracker#4](https://github.com/roboflow/external-bugtracker/issues/4) back in 2022 (macOS Monterey) and still open. It fails to parse **older CoreML model formats**. It is NOT iOS-version- or device-specific (reproduced on Monterey, iOS 17, and iOS 26).
+I traced the `wireType` error to the SDK's dynamic download→extract→parse pipeline, and isolated it to **older CoreML model formats** specifically — corroborated by a public report ([roboflow/external-bugtracker#4](https://github.com/roboflow/external-bugtracker/issues/4)) and reproducible across environments (Monterey, iOS 17, iOS 26). That last point is the useful one: reproducing it on three OS versions establishes it's a format-handling path, not something device- or iOS-version-specific.
 
-The Cash Counter App Store app works because it **bundles a precompiled model** and loads it via standard CoreML APIs, bypassing the SDK's broken dynamic-load path entirely.
+The Cash Counter App Store app works because it **bundles a precompiled model** and loads it via standard CoreML APIs, bypassing the SDK's dynamic-load path entirely.
 
 RF-DETR support landed in the SDK after pod 1.2.3 ([roboflow/roboflow-swift#17](https://github.com/roboflow/roboflow-swift/issues/17)); we're on 1.2.7. A known-working RF-DETR model (`glasses-detection-zkmto` v2, from Roboflow's own RF-DETR-on-iOS blog) **loads cleanly on the device**, confirming the SDK + device + CoreML pipeline works end-to-end for properly-exported RF-DETR.
 
 ### Why this matters for the architecture choice
-This is the strongest possible validation of choosing RF-DETR: **YOLOv5 and old-format models literally cannot load via the SDK's runtime path, while current RF-DETR exports do.** The benchmark-winning YOLOv5 baseline (79.8% mAP) can't deploy to the edge at all through this path; RF-DETR can.
+This is the strongest possible validation of choosing RF-DETR: **YOLOv5 and old-format models don't load via the SDK's runtime path, while current RF-DETR exports do.** The benchmark-winning YOLOv5 baseline (79.8% mAP) doesn't deploy to the edge through this path; RF-DETR does.
 
-### The SA takeaway
-Deployment-path compatibility is a discovery-phase question, not a deployment-phase surprise. Systematic isolation (test the baseline, test a known-good model of the same architecture, research the error, get positive confirmation) is how you de-risk an edge-CV deal before committing the customer to a path. The 5-test debugging sequence here is exactly the diligence an SA does before telling a customer "yes, this will run on your hardware."
+### The takeaway
+Deployment-path compatibility is a discovery-phase question, not a deployment-phase surprise. Systematic isolation (test the baseline, test a known-good model of the same architecture, research the error, get positive confirmation) is how you de-risk an edge-CV deal before committing the customer to a path. The 5-test debugging sequence here is exactly the diligence you'd do before telling a customer "yes, this will run on your hardware."
 
 ## The export paywall, and the local-training pivot
 
@@ -46,19 +46,19 @@ Once RF-DETR was confirmed loadable on-device, the remaining blocker was getting
 1. **CoreML / weights export for a custom model is a paid (Core-plan) feature.** Attempting to download our model produced `ZipExtractionError` / "No relevant model files found in ZIP" — because no CoreML export had been built for the project. The free Public tier supports **hosted-API inference** for custom models, but not the downloadable on-device artifact.
 2. **The 14-day Premium Trial does *not* unlock it.** Starting the trial upgraded the plan and the "upgrade" prompt disappeared, but the weights-download still returned the plan-tier error. Export sits behind the paid tier, not the trial.
 
-### Build-vs-buy economics (the SA reframe)
-This is not a complaint — it's a pricing/packaging signal worth understanding as an SA. Roboflow gives away the expensive part (GPU training + the hosted-API endpoint) and monetises the artifact you need for **offline, zero-marginal-cost, on-device** deployment. That's a rational fence: the customers who need a bundled edge model are exactly the ones running at scale (a fleet of sprayers, thousands of devices) where per-inference hosted-API costs would dominate and a seat/plan fee is trivial. The free tier is sized for *prototyping the model*; the paid tier is sized for *shipping it to the edge*.
+### Build-vs-buy economics
+It's a pricing/packaging signal worth understanding. Roboflow gives away the expensive part (GPU training + the hosted-API endpoint) and monetises the artifact you need for **offline, zero-marginal-cost, on-device** deployment. That's a rational fence: the customers who need a bundled edge model are exactly the ones running at scale (a fleet of sprayers, thousands of devices) where per-inference hosted-API costs would dominate and a seat/plan fee is trivial. The free tier is sized for *prototyping the model*; the paid tier is sized for *shipping it to the edge*.
 
 ### The pivot: open-source rfdetr
-Rather than pay for a portfolio demo — or, worse, try to intercept the paywalled download (which wouldn't work *and* would be a ToS violation and a terrible look when applying to Roboflow) — we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves. Same architecture, our own dataset, Roboflow's own open-source tooling: $0 and fully sanctioned. Details in [`training-setup.md`](./training-setup.md).
+Rather than pay for a demo — or, worse, try to intercept the paywalled download (which wouldn't work, and would be a ToS violation) — we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves. Same architecture, our own dataset, Roboflow's own open-source tooling: $0 and fully sanctioned. Details in [`training-setup.md`](./training-setup.md).
 
-One wrinkle the docs revealed, worth being precise about: **rfdetr exports ONNX and TFLite, not CoreML** ([export docs](https://rfdetr.roboflow.com/develop/learn/export/)), and modern `coremltools` dropped its ONNX→CoreML path. So "open-source → CoreML" isn't turnkey. **Verified in the package source:** `rfdetr/export/` ships `_onnx`, `_tensorrt`, and `_tflite` exporters — **no `_coreml` module** — and `export/main.py` describes itself verbatim as the *"CLI orchestrator for ONNX and TensorRT model export."* Tellingly, Roboflow's own 1.6 demo docs still *advertise* CoreML as an export target ("Export your model — ONNX, TensorRT, CoreML"), but the open package doesn't implement it: the RF-DETR→CoreML conversion they ship is **server-side, part of the paid platform**. So CoreML conversion is provably possible (they do it in production) — it just isn't in the free/open tier.
+One wrinkle the docs revealed, worth being precise about: **rfdetr exports ONNX and TFLite, not CoreML** ([export docs](https://rfdetr.roboflow.com/develop/learn/export/)), and modern `coremltools` dropped its ONNX→CoreML path. So "open-source → CoreML" isn't turnkey. **Verified in the package source:** `rfdetr/export/` ships `_onnx`, `_tensorrt`, and `_tflite` exporters — **no `_coreml` module** — and `export/main.py` describes itself verbatim as the *"CLI orchestrator for ONNX and TensorRT model export."* Roboflow's 1.6 docs do list CoreML as an export target ("Export your model — ONNX, TensorRT, CoreML") — but that refers to the **server-side conversion in the paid platform**, not the open package. So CoreML conversion is provably possible (they do it in production) — it just isn't in the free/open tier.
 
 **And we then did it ourselves, for $0.** A direct PyTorch→CoreML trace ([`../training/export_coreml.py`](../training/export_coreml.py)) produced `rfdetr_small.mlpackage` (55 MB, fp16), **validated on the macOS CoreML runtime** (loads + predicts; named `boxes`/`logits` outputs), matching the open model's outputs bit-for-bit. It took **four targeted patches**: (1) an int/bool cast override (coremltools `int(np.array([x]))` fails on modern numpy), (2) bicubic→bilinear for the DINOv2 pos-embed interp (coremltools supports neither bicubic variant), (3) flatten meshgrid inputs to 1-D, and (4) the hard one — a **rank-safe reimplementation of `MSDeformAttn.forward`**, because deformable attention's `(N,Lq,heads,levels,points,2)` sampling tensor is rank 6 and CoreML caps at rank 5. RF-DETR Small is single-scale (`n_levels=1`), so that level dim is redundant; the rewrite drops it (numerically identical, max diff 0.0). Full detail in [`training-setup.md`](./training-setup.md#export--getting-to-onnx-and-coreml).
 
 **The refined build-vs-buy line:** "can you?" is the wrong question — *yes*, the open stack reaches a working CoreML model that matches the paid output. The right question is "do you want to **own** it": this needed senior ML-engineering (an attention rewrite + numerical validation + version-specific converter patches) and is brittle across model config (`n_levels=1`), OS, and coremltools versions. The paid platform does that conversion turnkey and maintains it. ONNX Runtime Mobile remains the lower-effort on-device path if you'd rather not own the CoreML conversion. The GPU-training + export pipeline is in [`../training/train_colab.ipynb`](../training/train_colab.ipynb).
 
-The meta-point: an SA who has *personally* hit the export paywall and knows the open-source escape hatch can have an honest build-vs-buy conversation with a customer — when the platform is the right call, when self-hosting the open-source stack is, and where the line sits.
+The meta-point: having *personally* hit the export paywall and found the open-source escape hatch, you can have an honest build-vs-buy conversation with a customer — when the platform is the right call, when self-hosting the open-source stack is, and where the line sits.
 
 ## Model architecture: RF-DETR
 
@@ -133,7 +133,7 @@ The Cash Counter source isn't public, but these patterns are easy to replicate o
 
 ## What I'd want to extend with more time
 
-If this were a real customer engagement rather than a portfolio piece, the next-tier work would be:
+If this were a real customer engagement rather than a demo, the next-tier work would be:
 
 - **Field-test the model** with a small custom dataset of LA-yard weeds to see how the RF100-trained baseline generalises out of distribution
 - **Add temporal smoothing** — averaging detections across frames to reduce flicker

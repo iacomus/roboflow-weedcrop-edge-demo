@@ -63,7 +63,7 @@ Exact record of how the model was trained, for reproducibility and for the write
 
 The model **peaked at epoch 18 (0.7747 mAP@50) and then got *worse***, drifting down to 0.7160 by epoch 35 before early stopping kicked in. Classic overfitting after convergence.
 
-Two practical takeaways an SA should internalise:
+Two practical takeaways:
 
 1. **Training longer ≠ better.** Bumping the epoch budget would have produced a *worse* deployed model, not a better one, if you naively took the last checkpoint. The curve is concave: it climbs, peaks, then degrades.
 2. **Best-checkpoint tracking is what saves you.** Roboflow (and rfdetr) save the best-by-validation-mAP checkpoint, not the final one — so the *deployed* model is the epoch-18 peak (77.4%), even though training ran 17 more epochs past it. Early stopping (patience-based) then halts the wasted compute. This pairing — best-checkpoint save + early stopping — is why you can set a generous epoch cap and trust the system to land on the peak.

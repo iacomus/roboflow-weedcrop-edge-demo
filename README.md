@@ -1,6 +1,6 @@
 # Weed-Crop Detection on iPhone via Roboflow
 
-> Real-time weed/crop detection on iPhone via Roboflow — and a Solutions Architect's view of what happens to the customer conversation once dataset collection, annotation, model training, and edge deployment all become platform features instead of bespoke engineering programs.
+> Real-time weed/crop detection on iPhone via Roboflow — and a view of what happens to the customer conversation once dataset collection, annotation, model training, and edge deployment all become platform features instead of bespoke engineering programs.
 
 - **Dataset**: [`roboflow-100/weed-crop-aerial`](https://universe.roboflow.com/roboflow-100/weed-crop-aerial)
 - **Model**: RF-DETR via Roboflow hosted training
@@ -33,7 +33,7 @@ The same use case now lands in a few hours of work — because the two most expe
 
 ## Production deployment target
 
-The demo runs on iPhone because it's the most accessible edge target for a portfolio piece — and a phone walking a row is a fair stand-in for the rig-mounted camera. The production deployment that **closes the loop on the original engagement** is moving the plant-count inference *onto the rig itself*: an in-cab Jetson running RF-DETR as the tractor drives, instead of capturing ~600 km of raw imagery per season and batch-processing it weeks later.
+The demo runs on iPhone because it's the most accessible edge target for a demo like this — and a phone walking a row is a fair stand-in for the rig-mounted camera. The production deployment that **closes the loop on the original engagement** is moving the plant-count inference *onto the rig itself*: an in-cab Jetson running RF-DETR as the tractor drives, instead of capturing ~600 km of raw imagery per season and batch-processing it weeks later.
 
 "Real-time" here doesn't mean milliseconds — it means **within the field pass**. Three things make edge the right call, and only one is latency-to-action:
 
@@ -48,7 +48,7 @@ The same trained model also targets adjacent edge deployments via Roboflow's pat
 - **Jetson on a multirotor agricultural drone** — plot phenotyping at flight pace, on-board inference for in-flight coverage decisions
 - **On-board module on a precision-spray robot** — the *real-time weed-control* case: per-row herbicide-nozzle decisions (the John Deere See & Spray family). A different objective the same stack enables — but **not** what the original breeding engagement was about.
 
-Picking the target is itself an SA conversation: *"show me the deployment that matches the customer's actual hardware budget and operational pattern."*
+Picking the target is itself a discovery conversation: *"show me the deployment that matches the customer's actual hardware budget and operational pattern."*
 
 Worth flagging the hardware evolution underneath: agricultural aerial imagery was historically dominated by **fixed-wing UAVs** (longer flight time, larger area coverage); robust **multirotor agricultural drones** with multispectral payloads and the Jetson-class on-board compute they need are a much more recent capability. The platform shift isn't just "better software" — it's better software running on a new generation of edge hardware that genuinely didn't exist for this use case until the past few years.
 
@@ -75,14 +75,14 @@ _TODO: insert demo video link or embedded clip_
 
 ---
 
-## What this changes about the Solutions Architect conversation
+## What this changes about the customer conversation
 
 The reframings that come out of actually building this:
 
 1. **The biggest cost line in the original engagement was data, not modeling.** Collecting raw imagery, building the annotation tool, running the 5-user-consensus labeling project — that was the bulk of the 12 months. The model was downstream. Today the open-source dataset library + the in-app *"Incorrect Detection?"* feedback button collapse both ends of the data lifecycle. That's a different customer business case to discover against, not just a different tech stack.
-2. **Edge isn't a deployment afterthought; it's an architecture decision upstream.** RF-DETR vs. YOLOv5 isn't an academic comparison — it determines whether the model can ship to iOS via the Swift SDK, to a Jetson via TensorRT, or only via the hosted API. As an SA, surfacing this trade-off in early discovery (not at deployment time) is what de-risks the deal. (Building this surfaced a concrete instance: YOLOv5 and old-format models *cannot* load through the Swift SDK's runtime path — a [long-standing SDK bug](https://github.com/roboflow/external-bugtracker/issues/4) — while current RF-DETR exports do. Deployment-path compatibility is a discovery question.)
+2. **Edge isn't a deployment afterthought; it's an architecture decision upstream.** RF-DETR vs. YOLOv5 isn't an academic comparison — it determines whether the model can ship to iOS via the Swift SDK, to a Jetson via TensorRT, or only via the hosted API. Surfacing this trade-off in early discovery — not at deployment time — is what de-risks the deal. (Building this surfaced a concrete instance: YOLOv5 and old-format models don't load through the Swift SDK's runtime path — traced to a [documented SDK issue](https://github.com/roboflow/external-bugtracker/issues/4) affecting older CoreML formats — while current RF-DETR exports do. Deployment-path compatibility is a discovery question.)
 3. **Edge vs. cloud is a *use-case* decision, not a default.** "Put it on the device" is right only when the inference is coupled to a real-time action and/or runs without connectivity. The original breeding rig is the clean example: per-plant counting was a *batch/cloud* workload — capture the season, process later — but moving it on-rig (to catch a bad row while the growth-stage window is still open, and to avoid hauling 600 km of raw imagery off every field) makes it an *edge* one, **even though nothing fires in milliseconds**. Same model; the target follows the decision latency and the connectivity, not a reflex for "on-device." The framework (latency-to-action, connectivity, volume economics) is in [`notes/architecture-choices.md`](notes/architecture-choices.md).
-4. **"Free to prototype, paid to ship to the edge."** Roboflow gives away the expensive parts — GPU training and the hosted-API endpoint — but the **downloadable CoreML/weights artifact for offline on-device deployment is a paid (Core-plan) feature** (and the 14-day trial doesn't unlock it — I confirmed this the hard way). That's a rational fence, not a gotcha: the customers who need a *bundled* edge model are running at a scale where per-call hosted costs would dominate and a plan fee is trivial. For this portfolio piece I pivoted to the **open-source `rf-detr` package (Apache-2.0)** to train and export the model myself at $0 — the legitimate self-host path. A wrinkle the docs revealed: rfdetr exports **ONNX/TFLite, not CoreML** (confirmed in the package source — `_onnx`/`_tensorrt`/`_tflite` exporters but no CoreML module, even though the docs advertise one; the RF-DETR→CoreML conversion Roboflow sells runs server-side), and `coremltools` dropped its ONNX path. **So I converted it myself** — a direct PyTorch→CoreML trace plus four targeted patches (the hard one: a rank-safe reimplementation of deformable attention, since its rank-6 sampling tensor exceeds CoreML's rank-5 cap) produced a validated `.mlpackage` (55 MB, fp16) that matches the open model bit-for-bit, at $0. That *sharpens* the build-vs-buy line rather than weakening it: the open stack **can** reach a working CoreML model — but it took senior ML-engineering (an attention rewrite + numerical validation + version-specific converter patches) and is brittle across model config, OS, and coremltools versions. The paid platform does that conversion turnkey and maintains it. So the real question isn't *"can you"* — it's *"do you want to own the conversion and its upkeep"* — and an SA who's actually done it can have that conversation honestly. (Full teardown in [`notes/training-setup.md`](notes/training-setup.md).)
+4. **"Free to prototype, paid to ship to the edge."** Roboflow gives away the expensive parts — GPU training and the hosted-API endpoint — but the **downloadable CoreML/weights artifact for offline on-device deployment is a paid (Core-plan) feature** (and the 14-day trial doesn't unlock it). That's a rational fence: the customers who need a *bundled* edge model are running at a scale where per-call hosted costs would dominate and a plan fee is trivial. So I pivoted to the **open-source `rf-detr` package (Apache-2.0)** to train and export the model myself at $0 — the legitimate self-host path. A wrinkle the docs revealed: rfdetr exports **ONNX/TFLite, not CoreML** (confirmed in the package source — `_onnx`/`_tensorrt`/`_tflite` exporters but no CoreML module; the CoreML path the docs list is the server-side conversion Roboflow offers as a platform feature), and `coremltools` dropped its ONNX path. **So I converted it myself** — a direct PyTorch→CoreML trace plus four targeted patches (the hard one: a rank-safe reimplementation of deformable attention, since its rank-6 sampling tensor exceeds CoreML's rank-5 cap) produced a validated `.mlpackage` (55 MB, fp16) that matches the open model bit-for-bit, at $0. That *sharpens* the build-vs-buy line rather than weakening it: the open stack **can** reach a working CoreML model — but it took senior ML-engineering (an attention rewrite + numerical validation + version-specific converter patches) and is brittle across model config, OS, and coremltools versions. The paid platform does that conversion turnkey and maintains it. So the real question isn't *"can you"* — it's *"do you want to own the conversion and its upkeep"* — and having actually done it, you can have that conversation honestly. (Full teardown in [`notes/training-setup.md`](notes/training-setup.md).)
 5. **The platform replaces the *workflow that wraps the model*, not the model itself.** The model is commodity; the labeling tooling, hosted training, edge runtime, and data-feedback loop are what the customer is actually buying. Selling Roboflow well means leading with workflow, not weights.
 
 ---
@@ -98,10 +98,10 @@ cd roboflow-weedcrop-edge-demo
 cp .env.example .env          # then edit .env with your API key, model, version
 ./scripts/gen-secrets.sh      # generates the gitignored Secrets.swift from .env
 
-# 3. Install pods
-cd ios && pod install
+# 3. Install pods (the Podfile lives in the nested project dir)
+cd "ios/Roboflow Starter Project" && pod install
 
-# 4. Open the workspace
+# 4. Open the workspace (from that same dir)
 open "Roboflow Starter Project.xcworkspace"
 
 # 5. In Xcode: select your team under Signing & Capabilities,
