@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.moved-aside
+*.xcscmblueprint
+*.xccheckout
+
+# CocoaPods
+ios/Pods/
+ios/Podfile.lock
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+
+# Secrets — never commit API keys
+*.env
+*.secret
+APIKey.swift
+**/Secrets.swift
+
+# Build artifacts
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Editor
+.vscode/
+.idea/
+*.swp
