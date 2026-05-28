@@ -44,3 +44,15 @@ docs/
 .cursor/
 .aider*
 *.skill-cache
+
+# Local training artifacts (heavy — not committed)
+training/.venv/
+training/dataset/
+training/output/
+training/runs/
+training/*.pt
+training/*.pth
+training/*.mlpackage
+training/*.mlmodel
+training/*.log
+training/*.pid
