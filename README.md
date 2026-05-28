@@ -10,11 +10,11 @@
 
 ## The customer story
 
-I previously led delivery of an annotation platform for a **top-3 global crop-science company**'s plant-breeding program. Their tractor-mounted field imaging system captured **~600 km of maize-field imagery per season**, and they needed per-row plant counts to drive breeding decisions where a **3% yield improvement gates whether a hybrid advances to the next trial stage**.
+I previously led delivery of the computer-vision work for a **top-3 global crop-science company**'s plant-breeding program — the object-detection models and the human-in-the-loop annotation pipeline that fed them. Their tractor-mounted field imaging system captured **~600 km of maize-field imagery per season**, and they needed per-row plant counts to drive breeding decisions where a **3% yield improvement gates whether a hybrid advances to the next trial stage**.
 
 We already had a working object-detection algorithm for sunflowers, but it didn't transfer to maize — overlapping plants after the 4-leaf stage, weed confusion, halogen lighting at night, varietal color variation, and edge artifacts all confounded it. They'd already evaluated and rejected Mechanical Turk; the labeling task was too complex and the turnaround too slow.
 
-**What we built**: a 3-class human-in-the-loop annotation web app — *plants*, *weeds*, *other* — with **5-user consensus per image** and a difficulty-rating feedback loop. Java backend on OpenShift with async messaging, Angular frontend. The output was ground-truth training data to feed a custom detection algorithm.
+**What we built**: a 3-class human-in-the-loop annotation web app — *plants*, *weeds*, *other* — with **5-user consensus per image** and a difficulty-rating feedback loop. Java backend on OpenShift with async messaging, Angular frontend. The output was ground-truth training data to feed our maize detection model.
 
 **Total delivery**: ~12 months, multiple teams, ongoing maintenance burden. Three growth time points: 2-leaf (germination check), 4-leaf (plant stand established), 6-8 leaf (yield prediction). Target dataset: 3,000 images, 1,000 per time point.
 
