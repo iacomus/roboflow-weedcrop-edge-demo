@@ -16,66 +16,118 @@ var MODEL = Secrets.model
 var VERSION = Secrets.modelVersion
 
 class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
-    
+
     var bufferSize: CGSize = .zero
     var rootLayer: CALayer! = nil
-    
+
     private var detectionOverlay: CALayer! = nil
     var currentPixelBuffer: CVPixelBuffer!
-    
+
     private let captureSession = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer! = nil
     private let videoDataOutput = AVCaptureVideoDataOutput()
     private let videoDataOutputQueue = DispatchQueue(label: "VideoDataOutput", qos: .userInitiated, attributes: [], autoreleaseFrequency: .workItem)
-    
+
     @IBOutlet weak private var previewView: UIView!
-    @IBOutlet weak var fpsLabel: UILabel!
-    
+
     // Roboflow SDK is kept only for the "Upload Incorrect Image" data-flywheel call.
     let rf = RoboflowMobile(apiKey: API_KEY)
 
-    // On-device inference: our self-trained RF-DETR Small, bundled as CoreML.
-    private var visionModel: VNCoreMLModel?
-    private var visionRequest: VNCoreMLRequest?
+    // Inference backends. Both return the same [Detection], so the draw + count
+    // path below is identical regardless of source.
+    private lazy var edgeProvider: InferenceProvider = EdgeInferenceProvider()
+    private lazy var cloudProvider: InferenceProvider = CloudInferenceProvider(
+        apiKey: Secrets.apiKey, model: Secrets.model, version: Secrets.modelVersion)
+    private lazy var currentProvider: InferenceProvider = edgeProvider
 
-    // Decode config. Class channels: 1 = crop, 2 = weed (0 = COCO supercategory, 3 = padding).
-    private let confidenceThreshold: Float = 0.4
-    private let classNames: [Int: String] = [1: "crop", 2: "weed"]
+    // Overlay UI (built in code; the storyboard only carries the full-bleed preview).
+    private let modeControl = UISegmentedControl(items: ["Edge", "Cloud"])
+    private let readoutLabel = UILabel()
+    private let countCard = CountCardView(frame: .zero)
+    private let uploadButton = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupVisionModel()
         checkCameraAuthorization()
+        setupOverlayUI()
     }
 
-    private func setupVisionModel() {
-        guard let url = Bundle.main.url(forResource: "rfdetr_small", withExtension: "mlmodelc") else {
-            print("RFDEMO: ❌ rfdetr_small.mlmodelc not in bundle — add rfdetr_small.mlpackage to the app target in Xcode.")
-            return
-        }
-        do {
-            let mlModel = try MLModel(contentsOf: url)
-            let vnModel = try VNCoreMLModel(for: mlModel)
-            let request = VNCoreMLRequest(model: vnModel) { [weak self] request, error in
-                self?.handleDetections(request: request, error: error)
-            }
-            // Match training preprocessing: stretch the full frame to 512x512 (no crop / no letterbox).
-            request.imageCropAndScaleOption = .scaleFill
-            self.visionModel = vnModel
-            self.visionRequest = request
-            print("RFDEMO: ✅ CoreML model loaded (rfdetr_small)")
-        } catch {
-            print("RFDEMO: ❌ failed to load CoreML model: \(error)")
-        }
+    //--------------------------
+    //MARK: Overlay UI
+    //--------------------------
+
+    private func setupOverlayUI() {
+        // Top: segmented control + status readout.
+        modeControl.selectedSegmentIndex = 0
+        modeControl.selectedSegmentTintColor = .systemBlue
+        modeControl.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        modeControl.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .normal)
+        modeControl.addTarget(self, action: #selector(modeChanged), for: .valueChanged)
+        modeControl.translatesAutoresizingMaskIntoConstraints = false
+
+        readoutLabel.font = .monospacedSystemFont(ofSize: 13, weight: .semibold)
+        readoutLabel.textColor = .white
+        readoutLabel.textAlignment = .center
+        readoutLabel.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        readoutLabel.layer.cornerRadius = 10
+        readoutLabel.layer.masksToBounds = true
+        readoutLabel.text = "EDGE · — FPS · — ms"
+        readoutLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        countCard.translatesAutoresizingMaskIntoConstraints = false
+
+        uploadButton.setTitle("Upload Incorrect Image", for: .normal)
+        uploadButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+        uploadButton.setTitleColor(.white, for: .normal)
+        uploadButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        uploadButton.layer.cornerRadius = 18
+        uploadButton.addTarget(self, action: #selector(uploadImage(_:)), for: .touchUpInside)
+        uploadButton.translatesAutoresizingMaskIntoConstraints = false
+
+        [modeControl, readoutLabel, countCard, uploadButton].forEach { view.addSubview($0) }
+        let g = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            modeControl.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
+            modeControl.centerXAnchor.constraint(equalTo: g.centerXAnchor),
+            modeControl.widthAnchor.constraint(equalToConstant: 220),
+
+            readoutLabel.topAnchor.constraint(equalTo: modeControl.bottomAnchor, constant: 8),
+            readoutLabel.centerXAnchor.constraint(equalTo: g.centerXAnchor),
+            readoutLabel.widthAnchor.constraint(equalToConstant: 200),
+            readoutLabel.heightAnchor.constraint(equalToConstant: 26),
+
+            uploadButton.bottomAnchor.constraint(equalTo: g.bottomAnchor, constant: -12),
+            uploadButton.centerXAnchor.constraint(equalTo: g.centerXAnchor),
+            uploadButton.heightAnchor.constraint(equalToConstant: 44),
+
+            countCard.bottomAnchor.constraint(equalTo: uploadButton.topAnchor, constant: -12),
+            countCard.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
+            countCard.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+        ])
     }
-    
+
+    @objc private func modeChanged() {
+        currentProvider = (modeControl.selectedSegmentIndex == 0) ? edgeProvider : cloudProvider
+        // Clear stale boxes/counts immediately on switch.
+        detectionOverlay?.sublayers = nil
+        countCard.showEmpty()
+        readoutLabel.text = "\(currentProvider.displayName) · …"
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // Keep the camera preview + detection overlay filling the (full-screen) view.
+        previewLayer?.frame = previewView.bounds
+        detectionOverlay?.frame = previewView.bounds
+    }
+
     //--------------------------
     //MARK: Camera Session
     //--------------------------
-    
+
     func checkCameraAuthorization() {
         let authStatus = AVCaptureDevice.authorizationStatus(for: AVMediaType.video)
-        
+
         if authStatus == AVAuthorizationStatus.denied {
             // Denied access to camera
             // Explain that we need camera access and how to change it.
@@ -98,10 +150,10 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             setupAVCapture()
         }
     }
-    
+
     func setupAVCapture() {
         var deviceInput: AVCaptureDeviceInput!
-        
+
         // Select a video device, make an input
         guard let videoDevice = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera], mediaType: .video, position: .back).devices.first else {
             let alert = UIAlertController(
@@ -118,10 +170,10 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             print("Could not create video device input: \(error)")
             return
         }
-        
+
         captureSession.beginConfiguration()
         captureSession.sessionPreset = .hd1920x1080
-        
+
         // Add a video input
         guard captureSession.canAddInput(deviceInput) else {
             print("Could not add video device input to the session")
@@ -129,7 +181,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             return
         }
         captureSession.addInput(deviceInput)
-        
+
         if captureSession.canAddOutput(videoDataOutput) {
             captureSession.addOutput(videoDataOutput)
             // Add a video data output
@@ -141,7 +193,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             captureSession.commitConfiguration()
             return
         }
-        
+
         let captureConnection = videoDataOutput.connection(with: .video)
         // Always process the frames
         captureConnection?.isEnabled = true
@@ -154,22 +206,22 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         } catch {
             print(error)
         }
-        
+
         captureSession.commitConfiguration()
-        
+
         DispatchQueue.main.async { [self] in
             previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
             previewLayer.videoGravity = AVLayerVideoGravity.resizeAspectFill
             rootLayer = previewView.layer
             previewLayer.frame = rootLayer.bounds
             rootLayer.addSublayer(previewLayer)
-            
+
             setupLayers()
             updateLayerGeometry()
             startCaptureSession()
         }
     }
-    
+
     func stopCaptureSession() {
         self.captureSession.stopRunning()
 
@@ -185,110 +237,64 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             captureSession.startRunning()
         }
     }
-    
+
     func captureOutput(_ captureOutput: AVCaptureOutput, didDrop didDropSampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         print("frame dropped")
     }
-    
+
     //--------------------------
     //MARK: Model Inference
     //--------------------------
-    
-    // A single decoded detection in normalized [0,1] coordinates (model/512x512 space).
-    struct Detection {
-        let classId: Int
-        let label: String
-        let confidence: Float
-        let rect: CGRect   // cxcywh converted to xywh, normalized, origin top-left
-    }
 
-    var inferenceStart: DispatchTime!
     var detecting: Bool = false
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-            return
-        }
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         currentPixelBuffer = pixelBuffer
-
-        guard !detecting, let request = visionRequest else { return }
+        guard !detecting else { return }            // single-in-flight throttle
         detecting = true
-        inferenceStart = .now()
+        let provider = currentProvider
+        provider.infer(pixelBuffer) { [weak self] result in
+            self?.handleInference(result, provider: provider)
+        }
+    }
 
-        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-            // .right maps the back-camera landscape buffer to an upright frame for a
-            // portrait-held phone. If on-device boxes look rotated/transposed, this is
-            // the first knob to try (.up / .right / .down / .left).
-            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                print("RFDEMO: inference error \(error)")
-                self?.detecting = false
+    // Runs on the main queue: draw boxes, update the count card + readout.
+    private func handleInference(_ result: Result<InferenceOutput, Error>, provider: InferenceProvider) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            defer { self.detecting = false }
+            // Ignore a result from a provider we've since switched away from.
+            guard provider.displayName == self.currentProvider.displayName else { return }
+
+            switch result {
+            case .success(let out):
+                self.drawBoundingBoxesFrom(detections: out.detections)
+                let counts = Detection.counts(from: out.detections)
+                self.countCard.update(crops: counts.crops, weeds: counts.weeds)
+                let fps = out.latencyMs > 0 ? Int((1000.0 / out.latencyMs).rounded()) : 0
+                self.readoutLabel.text = "\(provider.displayName) · \(fps) FPS · \(Int(out.latencyMs.rounded())) ms"
+            case .failure:
+                // Offline / error: clear overlay + counts and say so. Edge has no
+                // network dependency, so flipping back to it resumes instantly.
+                self.detectionOverlay?.sublayers = nil
+                self.countCard.showEmpty()
+                self.readoutLabel.text = "\(provider.displayName) · offline"
             }
         }
     }
 
-    private func sigmoid(_ x: Float) -> Float { 1 / (1 + expf(-x)) }
-
-    // Vision completion: pull the `boxes`/`logits` MLMultiArrays, decode, draw.
-    private func handleDetections(request: VNRequest, error: Error?) {
-        defer { detecting = false }
-        if let error = error { print("RFDEMO: \(error)"); return }
-        guard let results = request.results as? [VNCoreMLFeatureValueObservation] else { return }
-        var boxes: MLMultiArray?
-        var logits: MLMultiArray?
-        for obs in results {
-            if obs.featureName == "boxes" { boxes = obs.featureValue.multiArrayValue }
-            if obs.featureName == "logits" { logits = obs.featureValue.multiArrayValue }
-        }
-        guard let boxes = boxes, let logits = logits else { return }
-        let detections = decode(boxes: boxes, logits: logits)
-
-        DispatchQueue.main.async { [self] in
-            drawBoundingBoxesFrom(detections: detections)
-            if let d = inferenceStart.distance(to: .now()).toDouble(), d > 0 {
-                fpsLabel.text = "\(Int(round(1 / d))) FPS"
-            }
-        }
-    }
-
-    // boxes: (1,300,4) cxcywh normalized; logits: (1,300,4) pre-sigmoid.
-    // Subscript access is dtype-agnostic (model outputs may be fp16).
-    private func decode(boxes: MLMultiArray, logits: MLMultiArray) -> [Detection] {
-        let numQueries = boxes.shape[1].intValue
-        var dets: [Detection] = []
-        for q in 0..<numQueries {
-            var bestId = -1
-            var bestScore: Float = 0
-            for c in classNames.keys {                 // only real classes (1=crop, 2=weed)
-                let s = sigmoid(logits[[0, q, c] as [NSNumber]].floatValue)
-                if s > bestScore { bestScore = s; bestId = c }
-            }
-            guard bestId >= 0, bestScore >= confidenceThreshold else { continue }
-            let cx = boxes[[0, q, 0] as [NSNumber]].floatValue
-            let cy = boxes[[0, q, 1] as [NSNumber]].floatValue
-            let w  = boxes[[0, q, 2] as [NSNumber]].floatValue
-            let h  = boxes[[0, q, 3] as [NSNumber]].floatValue
-            let rect = CGRect(x: CGFloat(cx - w / 2), y: CGFloat(cy - h / 2),
-                              width: CGFloat(w), height: CGFloat(h))
-            dets.append(Detection(classId: bestId, label: classNames[bestId] ?? "?",
-                                  confidence: bestScore, rect: rect))
-        }
-        return dets
-    }
-    
     //--------------------------
     //MARK: Bounding Boxes
     //--------------------------
-    
+
     func setupLayers() {
         detectionOverlay = CALayer()
         detectionOverlay.name = "DetectionOverlay"
         detectionOverlay.frame = rootLayer.bounds
         rootLayer.addSublayer(detectionOverlay)
     }
-    
+
     func drawBoundingBoxesFrom(detections: [Detection]) {
         CATransaction.begin()
         CATransaction.setValue(kCFBooleanTrue, forKey: kCATransactionDisableActions)
@@ -332,7 +338,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         }
         CATransaction.commit()
     }
-    
+
     //Create a bounding box and add it as a layer to the UI
     func drawBoundingBox(boundingBox: CGRect, color: UIColor, detectedValue: String, confidence: Double) {
         let shapeLayer = self.createRoundedRectLayerWithBounds(boundingBox, color: color)
@@ -340,22 +346,22 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
                                                         identifier: detectedValue,
                                                         confidence: VNConfidence(confidence))
         shapeLayer.addSublayer(textLayer)
-        
+
         detectionOverlay.addSublayer(shapeLayer)
         self.updateLayerGeometry()
     }
-    
+
     func drawPolygonBox(boundingBox: CGRect, polygon: [CGPoint], mask: [[UInt8]], color: UIColor, detectedValue: String, confidence: Double) {
             let shapeLayer = self.createPolygonLayerWithBounds(boundingBox, polygon: polygon, mask2D: mask, color: color)
             let textLayer = self.createTextSubLayerInBounds(boundingBox,
                                                             identifier: detectedValue,
                                                             confidence: VNConfidence(confidence))
             shapeLayer.addSublayer(textLayer)
-            
+
             detectionOverlay.addSublayer(shapeLayer)
             self.updateLayerGeometry()
         }
-    
+
     func createPolygonLayerWithBounds(_ bounds: CGRect,
                                           polygon: [CGPoint],
                                           mask2D: [[UInt8]],
@@ -365,8 +371,8 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             container.bounds = bounds
             container.position = CGPoint(x: bounds.origin.x, y: bounds.origin.y)
             container.name = "Found Object"
-            
-            
+
+
 
             container.borderColor  = color.withAlphaComponent(0.4).cgColor
             container.borderWidth  = 2
@@ -381,7 +387,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             if scale.isInfinite {
                 scale = 1.0
             }
-        
+
             // ⬠ 3. polygon outline  ----------------------------------------------
             let shapeLayer = CAShapeLayer()
             shapeLayer.frame = detectionOverlay.bounds
@@ -397,46 +403,46 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             shapeLayer.fillColor   = color.withAlphaComponent(0.4).cgColor         // fill is from bitmap
             shapeLayer.lineWidth   = 2
             shapeLayer.lineJoin    = .round
-        
-            
 
-        
+
+
+
             detectionOverlay.addSublayer(shapeLayer)
 
             return container
         }
-    
+
     //Create a layer displaying the classification result and it's confidence
     func createTextSubLayerInBounds(_ bounds: CGRect, identifier: String, confidence: VNConfidence) -> CATextLayer {
         let textLayer = CATextLayer()
         textLayer.name = "Object Label"
         let confidenceString: String = ("x: \(bounds.midX) y: \(bounds.midY)")//("Confidence: \(confidence)")
-        
+
         let formattedString = NSMutableAttributedString(string: String(format: "\(identifier)\n\(confidenceString)"))
         let largeFont = UIFont(name: "Helvetica", size: 24.0)!
-        
+
         formattedString.addAttributes([NSAttributedString.Key.font: largeFont], range: NSRange(location: 0, length: identifier.count))
         formattedString.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.white, range: NSRange(location: 0, length: identifier.count + confidenceString.count + 1))
-        
+
         textLayer.string = formattedString
         textLayer.bounds = CGRect(x: 0, y: 0, width: bounds.size.height - 10, height: bounds.size.width - 10)
         textLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
         textLayer.shadowOffset = CGSize(width: 2, height: 2)
         textLayer.foregroundColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0.0, 0.0, 0.0, 1.0])
         textLayer.contentsScale = 2.0 // retina rendering
-        
+
         // Rotate the layer into screen orientation and scale and mirror
 //        textLayer.setAffineTransform(CGAffineTransform(rotationAngle: CGFloat(.pi / 2.0)).scaledBy(x: -1.0, y: -1.0))
         return textLayer
     }
-    
+
     //Creates the shape for bounding boxes to be displayed on the screen
     func createRoundedRectLayerWithBounds(_ bounds: CGRect, color: UIColor) -> CALayer {
         let shapeLayer = CALayer()
         shapeLayer.bounds = bounds
         shapeLayer.position = CGPoint(x: bounds.origin.x, y: bounds.origin.y)
         shapeLayer.name = "Found Object"
-        
+
         var colorComponents = color.cgColor.components
         colorComponents?.removeLast()
         colorComponents?.append(0.4)
@@ -444,31 +450,31 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         shapeLayer.cornerRadius = 7
         return shapeLayer
     }
-    
+
     // Keep the detection overlay aligned with the preview. Boxes are positioned in
     // screen coords via layerRectConverted, so no rotation transform is needed.
     func updateLayerGeometry() {
         detectionOverlay?.frame = rootLayer.bounds
     }
-    
+
     //--------------------------
     //MARK: Image Uploading
     //--------------------------
-    
+
     //Starts upload flow for if a user wants to upload the camera frame where an incorrect image classification occured
     @IBAction func uploadImage(_ sender: Any) {
-        
+
         //Capture the current pixel buffer of the camera and convert it an image
         guard let pixelBuffer = currentPixelBuffer else {
             return
         }
-        
+
         guard let capturedImage = UIImage(pixelBuffer: pixelBuffer) else {
             return
         }
-        
+
         let rotatedImage = capturedImage.rotateImage(orientation: .down)
-        
+
         let alert = UIAlertController(title: "Incorrect count?", message: "You've captured an image of this wrong count. Upload it to the open source dataset to improve this model.", preferredStyle: .alert)
         let imageView = UIImageView(frame: CGRect(x: 10, y: 100, width: 250, height: 230))
         imageView.image = rotatedImage
@@ -477,25 +483,25 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         let width = NSLayoutConstraint(item: alert.view!, attribute: .width, relatedBy: .equal, toItem: nil, attribute: .notAnAttribute, multiplier: 1, constant: 250)
         alert.view.addConstraint(height)
         alert.view.addConstraint(width)
-        
+
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { (_) in
         }))
         alert.addAction(UIAlertAction(title: "Upload", style: .default, handler: { [self] (_) in
             //Upload the captured image to your dataset
             upload(image: rotatedImage)
         }))
-        
+
         self.present(alert, animated: true, completion: nil)
     }
-    
+
     //Uploads the incorrect classification frame
     func upload(image: UIImage) {
         let project = "weed-crop-aerial-mbyst"
-        
+
         rf.uploadImage(image: image, project: project) { result in
             var title: String!
             var message: String!
-            
+
             switch result {
             case .Success:
                 title = "Success!"
@@ -509,7 +515,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             @unknown default:
                 return
             }
-            
+
             DispatchQueue.main.async {
                 let alert = UIAlertController(title: title, message: message, preferredStyle: UIAlertController.Style.alert)
                 alert.addAction(UIAlertAction(title: "OK", style: .cancel, handler: { (_) in
@@ -518,5 +524,5 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             }
         }
     }
-    
+
 }
