@@ -39,6 +39,7 @@ build/
 # Skill / agent-tool internal artifacts — DO NOT COMMIT
 # Brainstorming specs, plans, and other internal planning docs may
 # reference customer names or other content excluded from the public repo.
+CLAUDE.md
 docs/
 .claude/
 .cursor/
