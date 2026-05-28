@@ -27,7 +27,8 @@ The same use case now lands in a few hours of work — because the two most expe
 1. **The dataset is open source.** Forked [`roboflow-100/weed-crop-aerial`](https://universe.roboflow.com/roboflow-100/weed-crop-aerial) — 1,176 pre-labeled aerial weed/crop images derived from peer-reviewed agritech research ([Sudars et al. 2020](https://www.sciencedirect.com/science/article/pii/S2352340920307277)), shipped as part of the Intel-sponsored [Roboflow 100 benchmark](https://github.com/roboflow-ai/roboflow-100-benchmark). **No annotation project needed.**
 2. **The model architectures are pre-built and edge-ready.** Trained an **RF-DETR** variant via Roboflow hosted training — chosen over YOLOv5 for native CoreML compatibility and better on-device latency. The customer's original problem statement was *"build us a maize-counting algorithm from scratch."* The platform-era equivalent is *"pick a variant from the library."*
 3. **Deployment is an SDK call.** iPhone 17 Pro via the [`roboflow-swift`](https://github.com/roboflow/roboflow-swift) SDK, built on top of [`roboflow-ios-starter`](https://github.com/roboflow/roboflow-ios-starter). (See reframing #4 below — the on-device artifact is trained with the open-source `rf-detr` package and converted on our own machine, since Roboflow's hosted CoreML export is a paid platform feature.)
-4. **The labeling loop inverts.** Added a count-card overlay (crops/weeds/weed-pressure %) and an *"Incorrect Detection?"* button wired to `rf.uploadImage()` — so the field scout *using* the app becomes the labeler *in the flow of work*, replacing the original project's centralized 5-user consensus labeling.
+4. **The labeling loop inverts.** Added a count-card overlay (crop stand count as the hero metric, with weeds detected but shown as the *excluded* confounder — mirroring the original engagement, where stand count was the decision and weeds were the thing to filter out) and an *"Incorrect Detection?"* button wired to `rf.uploadImage()` — so the field scout *using* the app becomes the labeler *in the flow of work*, replacing the original project's centralized 5-user consensus labeling.
+5. **Edge vs. cloud is a live toggle.** The app runs the *same* detection task two ways — on-device CoreML and the Roboflow hosted API — switchable with an in-app segmented control. The latency/throughput trade-off (and what happens when connectivity drops) is something you watch on screen rather than argue about in the abstract (see reframing #3, and the Demo below).
 
 > **On the dataset as a stand-in.** The public weed/crop set isn't the breeding data — it's a visible proxy for the proprietary maize-stand imagery I can't show. And the original engagement is precisely why I wouldn't *assume* it transfers: a working sunflower detector broke on maize (overlapping plants, weed confusion, varietal colour, night-time halogen lighting). So in a real engagement step one isn't "fork a public dataset and ship" — it's collect a small field sample and **measure out-of-distribution generalisation** before trusting it. Treating transfer as a discovery-phase question rather than an assumption is the lesson that whole project paid for.
 
@@ -61,17 +62,22 @@ Worth flagging the hardware evolution underneath: agricultural aerial imagery wa
 | Training | ~27 min hosted (paid) **or** ~85 min free Colab T4 — equivalent accuracy |
 | mAP@50 / @50:95 | hosted 0.7747 / ~0.47  ·  free Colab ~0.76 / 0.497 |
 | On-device export | CoreML `.mlpackage` 55 MB (fp16) · ONNX 117 MB — both self-converted & validated |
-| iPhone 17 Pro inference | ~23 FPS (on-device CoreML, real-time) |
+| iPhone 17 Pro inference | **edge** on-device CoreML ~23 FPS / 44 ms · **cloud** hosted API ~7 FPS / 154 ms (same model, measured live via the in-app toggle) |
 
 ---
 
 ## Demo
 
-_TODO: insert demo video link or embedded clip_
+The same RF-DETR model, the same frame, two deployment paths — switched live with the in-app toggle:
 
-![Live detection on iPhone](assets/screenshots/detection-live.png)
-![Count card overlay](assets/screenshots/count-card.png)
-![Incorrect-detection feedback](assets/screenshots/incorrect-detection-button.png)
+| Edge — on-device CoreML | Cloud — Roboflow hosted API |
+|---|---|
+| ![Edge mode: on-device CoreML inference at 23 FPS](assets/screenshots/edge-inference.png) | ![Cloud mode: Roboflow hosted API, 154 ms round-trip](assets/screenshots/cloud-inference.png) |
+| `EDGE · 23 FPS · 44 ms` | `CLOUD · 7 FPS · 154 ms` |
+
+On-device inference is ~3× the throughput and runs with no connectivity; the hosted path needs a round-trip per frame. The count card reads the **crop stand count** (weeds detected but excluded from the count), and the *"Upload Incorrect Image"* button feeds field corrections back to the dataset. The edge and cloud boxes differ slightly because they run different checkpoints of the same architecture (Colab-trained on-device vs Roboflow-hosted) — the point isn't numeric parity, it's that one trained model deploys both ways.
+
+_TODO: insert demo video link or embedded clip_
 
 ---
 
