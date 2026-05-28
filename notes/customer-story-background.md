@@ -16,7 +16,7 @@ A **tractor-mounted field imaging system** captured ~600 km of maize-field image
 
 ## The technical challenge
 
-They had a working object-detection algorithm for **sunflowers** — sunflower plants don't overlap and have distinctive leaf shapes. **Maize broke the algorithm** because:
+We had a working object-detection algorithm for **sunflowers** — sunflower plants don't overlap and have distinctive leaf shapes. **Maize broke the algorithm** because:
 
 - **Overlapping plants** after the 4-leaf growth stage
 - **Weed confusion** — multiple weed species growing between plants
@@ -53,7 +53,7 @@ A 3-class human-in-the-loop annotation web application:
 - **Frontend**: Angular single-page app with zoom/pan, plant-marker placement, weed marking, and difficulty-rating feedback
 - **Labeling protocol**: each image annotated by **5 distinct users** for consensus ground truth
 - **Classes**: `plants`, `weeds`, `other` (debris, soil artifacts, edge-cut plants)
-- **Output**: labeled dataset feeding a downstream custom detection algorithm built by the customer's data-science team
+- **Output**: labeled dataset feeding the downstream maize detection model
 
 ## What it cost
 

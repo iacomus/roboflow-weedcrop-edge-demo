@@ -12,7 +12,7 @@
 
 I previously led delivery of an annotation platform for a **top-3 global crop-science company**'s plant-breeding program. Their tractor-mounted field imaging system captured **~600 km of maize-field imagery per season**, and they needed per-row plant counts to drive breeding decisions where a **3% yield improvement gates whether a hybrid advances to the next trial stage**.
 
-They already had a working object-detection algorithm for sunflowers, but it didn't transfer to maize — overlapping plants after the 4-leaf stage, weed confusion, halogen lighting at night, varietal color variation, and edge artifacts all confounded it. They'd already evaluated and rejected Mechanical Turk; the labeling task was too complex and the turnaround too slow.
+We already had a working object-detection algorithm for sunflowers, but it didn't transfer to maize — overlapping plants after the 4-leaf stage, weed confusion, halogen lighting at night, varietal color variation, and edge artifacts all confounded it. They'd already evaluated and rejected Mechanical Turk; the labeling task was too complex and the turnaround too slow.
 
 **What we built**: a 3-class human-in-the-loop annotation web app — *plants*, *weeds*, *other* — with **5-user consensus per image** and a difficulty-rating feedback loop. Java backend on OpenShift with async messaging, Angular frontend. The output was ground-truth training data to feed a custom detection algorithm.
 
