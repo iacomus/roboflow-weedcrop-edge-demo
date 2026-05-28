@@ -47,7 +47,7 @@ Once RF-DETR was confirmed loadable on-device, the remaining blocker was getting
 2. **The 14-day Premium Trial does *not* unlock it.** Starting the trial upgraded the plan and the "upgrade" prompt disappeared, but the weights-download still returned the plan-tier error. Export sits behind the paid tier, not the trial.
 
 ### Build-vs-buy economics
-It's a pricing/packaging signal worth understanding. Roboflow gives away the expensive part (GPU training + the hosted-API endpoint) and monetises the artifact you need for **offline, zero-marginal-cost, on-device** deployment. That's a rational fence: the customers who need a bundled edge model are exactly the ones running at scale (a fleet of sprayers, thousands of devices) where per-inference hosted-API costs would dominate and a seat/plan fee is trivial. The free tier is sized for *prototyping the model*; the paid tier is sized for *shipping it to the edge*.
+It's a pricing/packaging signal worth understanding. Roboflow gives away the expensive part (GPU training + the hosted-API endpoint) and monetises the artifact you need for **offline, zero-marginal-cost, on-device** deployment. That's a rational fence: the customers who need a bundled edge model are exactly the ones running at scale (a field-station fleet of in-cab rigs, thousands of edge devices) where per-inference hosted-API costs would dominate and a seat/plan fee is trivial. The free tier is sized for *prototyping the model*; the paid tier is sized for *shipping it to the edge*.
 
 ### The pivot: open-source rfdetr
 Rather than pay for a demo — or, worse, try to intercept the paywalled download (which wouldn't work, and would be a ToS violation) — we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves. Same architecture, our own dataset, Roboflow's own open-source tooling: $0 and fully sanctioned. Details in [`training-setup.md`](./training-setup.md).
@@ -106,7 +106,9 @@ The instinct "put the model on the device" isn't automatically correct — it's 
 | **Connectivity** | Must work with none (mid-field, no signal) | Reliable uplink available |
 | **Latency budget** | Milliseconds (the plant is moving past the nozzle) | Seconds-to-minutes is fine |
 | **Volume economics** | Thousands of devices → per-inference cloud cost is prohibitive; on-device is zero-marginal | Low/bursty volume → pay-per-call is cheaper than owning hardware |
-| **Canonical ag use case** | Real-time precision spraying ("see-and-spray"), live crop scouting | Post-flight drone-survey analysis, yield mapping, agronomic reporting |
+| **Canonical ag use case** | Live crop scouting; real-time precision spraying ("see-and-spray") — the textbook millisecond case, but a *different* objective from this demo (see below) | Post-flight drone-survey analysis, yield mapping, agronomic reporting |
+
+_Read the table as the general dividing line. Spraying is the textbook millisecond example — but it's a **different** objective from this demo; the breeding **count** sits in the edge column via the connectivity and volume-economics rows, not millisecond latency._
 
 The clearest example comes from the plant-breeding engagement this demo is built around. Per-plant **counting** for hybrid selection was historically a *batch, cloud* workload — a tractor rig captures ~600 km of imagery per season, hauled back and processed weeks later. Re-pointing that same task to the **edge** (an in-cab Jetson counting as the rig drives) is the right move — but *not* because of millisecond latency, since counting fires no actuator. It's because:
 
