@@ -10,9 +10,9 @@ import AVFoundation
 import Vision
 import Roboflow
 
-var API_KEY = ""
-var MODEL = ""
-var VERSION = 0
+var API_KEY = Secrets.apiKey
+var MODEL = Secrets.model
+var VERSION = Secrets.modelVersion
 
 class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
@@ -193,10 +193,13 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     //--------------------------
     
     func loadRoboflowModelWith(model: String, version: Int,  threshold: Double, overlap: Double, maxObjects: Float) {
+        print("RFDEMO: loading model=\(model) version=\(version) apiKeyPrefix=\(String(API_KEY.prefix(4)))…")
         rf.load(model: model, modelVersion: version) { [self] model, error, modelName, modelType in
-            if error != nil {
-                print(error?.localizedDescription as Any)
+            if let error = error {
+                print("RFDEMO: ❌ MODEL LOAD FAILED: \(error.localizedDescription)")
+                print("RFDEMO: full error = \(String(describing: error))")
             } else {
+                print("RFDEMO: ✅ MODEL LOADED OK modelName=\(modelName ?? "nil") modelType=\(String(describing: modelType))")
                 roboflowModel = model
                 roboflowModel?.configure(threshold: threshold, overlap: overlap, maxObjects: maxObjects, processingMode: .performance, maxNumberPoints: 20)
             }
@@ -224,6 +227,9 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
                         print(error!)
                     } else {
                         let detectionResults: [RFPrediction] = detections!
+                        if detectionResults.count > 0 {
+                            print("RFDEMO: detections=\(detectionResults.count) classes=\(detectionResults.map { ($0.getValues()["class"] as? String) ?? "?" })")
+                        }
                         self.drawBoundingBoxesFrom(detections: detectionResults)
                         self.detecting = false
                         

@@ -15,6 +15,22 @@ Picked from the [Roboflow 100 benchmark](https://github.com/roboflow-ai/roboflow
 
 The RF100 snapshot has a better-characterised baseline and a stronger narrative anchor — using a dataset from the platform's own benchmark suite signals familiarity with the platform's research output, not just its dataset library.
 
+## Empirical confirmation: YOLOv5 baseline does NOT deploy via the iOS SDK
+
+Before training our own model, I tested deploying the RF100 published baseline (`weed-crop-aerial`, YOLOv5, 79.8% mAP@50) directly to an iPhone 17 Pro via the Roboflow Swift SDK. Result:
+
+- **Model resolution + download succeeded** — the bare project slug `weed-crop-aerial` + a personal API key resolved and pulled the public model (cross-workspace public loading works).
+- **CoreML parse FAILED** at load time:
+  ```
+  Error Domain=com.apple.mlassetio Code=1
+  "Failed to parse the model specification.
+   Error: Field number 7 has wireType 4, which is not supported."
+  ```
+
+This is a protobuf deserialization failure in Apple's CoreML loader — the YOLOv5 CoreML conversion can't be parsed by the device runtime. Confirms the SDK docs (which list only RF-DETR, YoloLite, and Classification as CoreML-deployable) and validates the decision to train our own RF-DETR rather than reuse the published YOLOv5 checkpoint.
+
+**The SA takeaway**: the model that wins the benchmark (79.8% mAP) can't deploy to the edge target at all. Architecture/deployment compatibility belongs in early discovery, not at deployment time.
+
 ## Model architecture: RF-DETR
 
 Roboflow's iOS Swift SDK supports a restricted set of architectures for CoreML deployment: **RF-DETR**, **YoloLite**, and **Classification models**. YOLOv5 (which the pre-trained RF100 model uses) is **not** on that list.
