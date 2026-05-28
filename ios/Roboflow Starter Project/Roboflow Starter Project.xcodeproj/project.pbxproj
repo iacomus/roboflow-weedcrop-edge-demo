@@ -23,6 +23,15 @@
 		E4B079EB28CE931100A2237F /* Roboflow_Starter_ProjectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4B079EA28CE931100A2237F /* Roboflow_Starter_ProjectTests.swift */; };
 		E4B079F528CE931100A2237F /* Roboflow_Starter_ProjectUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4B079F428CE931100A2237F /* Roboflow_Starter_ProjectUITests.swift */; };
 		E4B079F728CE931100A2237F /* Roboflow_Starter_ProjectUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4B079F628CE931100A2237F /* Roboflow_Starter_ProjectUITestsLaunchTests.swift */; };
+		DE7EC700000000000000A002 /* Detection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000A001 /* Detection.swift */; };
+		DE7EC700000000000000B002 /* InferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000B001 /* InferenceProvider.swift */; };
+		DE7EC700000000000000C002 /* EdgeInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000C001 /* EdgeInferenceProvider.swift */; };
+		DE7EC700000000000000D002 /* CloudInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000D001 /* CloudInferenceProvider.swift */; };
+		DE7EC700000000000000E002 /* CountCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000E001 /* CountCardView.swift */; };
+		DE7EC700000000000000A102 /* DetectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000A101 /* DetectionTests.swift */; };
+		DE7EC700000000000000B102 /* EdgeDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000B101 /* EdgeDecodeTests.swift */; };
+		DE7EC700000000000000C102 /* CloudParseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000C101 /* CloudParseTests.swift */; };
+		DE7EC700000000000000E102 /* CountCardViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000E101 /* CountCardViewTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +78,15 @@
 		E4B079F028CE931100A2237F /* Roboflow Starter ProjectUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Roboflow Starter ProjectUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E4B079F428CE931100A2237F /* Roboflow_Starter_ProjectUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Roboflow_Starter_ProjectUITests.swift; sourceTree = "<group>"; };
 		E4B079F628CE931100A2237F /* Roboflow_Starter_ProjectUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Roboflow_Starter_ProjectUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000A001 /* Detection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Detection.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000B001 /* InferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceProvider.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000C001 /* EdgeInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeInferenceProvider.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000D001 /* CloudInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudInferenceProvider.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000E001 /* CountCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountCardView.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000A101 /* DetectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionTests.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000B101 /* EdgeDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeDecodeTests.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000C101 /* CloudParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudParseTests.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000E101 /* CountCardViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountCardViewTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -154,6 +172,11 @@
 				1A9F4CB02FC83C50007D1070 /* rfdetr_small.mlpackage */,
 				E48B4CFE28CF745D00A9B237 /* DispatchTimeInterval+Extension.swift */,
 				E4699FCE28CE96A40099DD5A /* UIImage+Extension.swift */,
+				DE7EC700000000000000A001 /* Detection.swift */,
+				DE7EC700000000000000B001 /* InferenceProvider.swift */,
+				DE7EC700000000000000C001 /* EdgeInferenceProvider.swift */,
+				DE7EC700000000000000D001 /* CloudInferenceProvider.swift */,
+				DE7EC700000000000000E001 /* CountCardView.swift */,
 				E4B079D928CE930C00A2237F /* Main.storyboard */,
 				E4B079DC28CE931000A2237F /* Assets.xcassets */,
 				E4B079DE28CE931000A2237F /* LaunchScreen.storyboard */,
@@ -166,6 +189,10 @@
 			isa = PBXGroup;
 			children = (
 				E4B079EA28CE931100A2237F /* Roboflow_Starter_ProjectTests.swift */,
+				DE7EC700000000000000A101 /* DetectionTests.swift */,
+				DE7EC700000000000000B101 /* EdgeDecodeTests.swift */,
+				DE7EC700000000000000C101 /* CloudParseTests.swift */,
+				DE7EC700000000000000E101 /* CountCardViewTests.swift */,
 			);
 			path = "Roboflow Starter ProjectTests";
 			sourceTree = "<group>";
@@ -433,6 +460,11 @@
 				E4B079D628CE930C00A2237F /* SceneDelegate.swift in Sources */,
 				E48B4CFF28CF745D00A9B237 /* DispatchTimeInterval+Extension.swift in Sources */,
 				E4699FCF28CE96A40099DD5A /* UIImage+Extension.swift in Sources */,
+				DE7EC700000000000000A002 /* Detection.swift in Sources */,
+				DE7EC700000000000000B002 /* InferenceProvider.swift in Sources */,
+				DE7EC700000000000000C002 /* EdgeInferenceProvider.swift in Sources */,
+				DE7EC700000000000000D002 /* CloudInferenceProvider.swift in Sources */,
+				DE7EC700000000000000E002 /* CountCardView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -441,6 +473,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				E4B079EB28CE931100A2237F /* Roboflow_Starter_ProjectTests.swift in Sources */,
+				DE7EC700000000000000A102 /* DetectionTests.swift in Sources */,
+				DE7EC700000000000000B102 /* EdgeDecodeTests.swift in Sources */,
+				DE7EC700000000000000C102 /* CloudParseTests.swift in Sources */,
+				DE7EC700000000000000E102 /* CountCardViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -674,7 +710,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7SBQ39NG7G;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.Roboflow.Roboflow-Starter-ProjectTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -695,7 +731,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7SBQ39NG7G;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.Roboflow.Roboflow-Starter-ProjectTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
