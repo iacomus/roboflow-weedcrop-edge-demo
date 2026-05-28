@@ -61,7 +61,7 @@ Worth flagging the hardware evolution underneath: agricultural aerial imagery wa
 | Training | ~27 min hosted (paid) **or** ~85 min free Colab T4 — equivalent accuracy |
 | mAP@50 / @50:95 | hosted 0.7747 / ~0.47  ·  free Colab ~0.76 / 0.497 |
 | On-device export | CoreML `.mlpackage` 55 MB (fp16) · ONNX 117 MB — both self-converted & validated |
-| iPhone 17 Pro inference | _TODO: FPS (after Swift integration)_ |
+| iPhone 17 Pro inference | ~23 FPS (on-device CoreML, real-time) |
 
 ---
 

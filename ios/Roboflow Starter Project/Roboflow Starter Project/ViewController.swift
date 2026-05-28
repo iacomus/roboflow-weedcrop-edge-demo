@@ -8,6 +8,7 @@
 import UIKit
 import AVFoundation
 import Vision
+import CoreML
 import Roboflow
 
 var API_KEY = Secrets.apiKey
@@ -30,17 +31,42 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     @IBOutlet weak private var previewView: UIView!
     @IBOutlet weak var fpsLabel: UILabel!
     
-    //Initialize the Roboflow SDK
+    // Roboflow SDK is kept only for the "Upload Incorrect Image" data-flywheel call.
     let rf = RoboflowMobile(apiKey: API_KEY)
-    var roboflowModel: RFModel!
-    
+
+    // On-device inference: our self-trained RF-DETR Small, bundled as CoreML.
+    private var visionModel: VNCoreMLModel?
+    private var visionRequest: VNCoreMLRequest?
+
+    // Decode config. Class channels: 1 = crop, 2 = weed (0 = COCO supercategory, 3 = padding).
+    private let confidenceThreshold: Float = 0.4
+    private let classNames: [Int: String] = [1: "crop", 2: "weed"]
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
-        
-        loadRoboflowModelWith(model: MODEL, version: VERSION, threshold: 0.1, overlap: 0.2, maxObjects: 100.0)
-        
+        setupVisionModel()
         checkCameraAuthorization()
+    }
+
+    private func setupVisionModel() {
+        guard let url = Bundle.main.url(forResource: "rfdetr_small", withExtension: "mlmodelc") else {
+            print("RFDEMO: ❌ rfdetr_small.mlmodelc not in bundle — add rfdetr_small.mlpackage to the app target in Xcode.")
+            return
+        }
+        do {
+            let mlModel = try MLModel(contentsOf: url)
+            let vnModel = try VNCoreMLModel(for: mlModel)
+            let request = VNCoreMLRequest(model: vnModel) { [weak self] request, error in
+                self?.handleDetections(request: request, error: error)
+            }
+            // Match training preprocessing: stretch the full frame to 512x512 (no crop / no letterbox).
+            request.imageCropAndScaleOption = .scaleFill
+            self.visionModel = vnModel
+            self.visionRequest = request
+            print("RFDEMO: ✅ CoreML model loaded (rfdetr_small)")
+        } catch {
+            print("RFDEMO: ❌ failed to load CoreML model: \(error)")
+        }
     }
     
     //--------------------------
@@ -144,40 +170,16 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         }
     }
     
-    @IBAction func changeCameraDirection(_ sender: Any) {
-        switchCamera()
-    }
-    
     func stopCaptureSession() {
         self.captureSession.stopRunning()
-        
+
         if let inputs = captureSession.inputs as? [AVCaptureDeviceInput] {
             for input in inputs {
                 self.captureSession.removeInput(input)
             }
         }
     }
-    
-    func switchCamera() {
-        captureSession.beginConfiguration()
-        guard let currentInput = captureSession.inputs.first as? AVCaptureDeviceInput else {
-            return
-        }
-        captureSession.removeInput(currentInput)
-        
-        guard let newCameraDevice = currentInput.device.position == .back ? getCamera(with: .front) : getCamera(with: .back) else { return
-        }
-        guard let newVideoInput = try? AVCaptureDeviceInput(device: newCameraDevice) else { return  }
-        captureSession.addInput(newVideoInput)
-        captureSession.commitConfiguration()
-    }
-    
-    func getCamera(with position: AVCaptureDevice.Position) -> AVCaptureDevice? {
-        let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera], mediaType: .video, position: position)
-        return discoverySession.devices.first
-    }
-    
-    
+
     func startCaptureSession() {
         DispatchQueue.global(qos: .background).async { [self] in
             captureSession.startRunning()
@@ -192,59 +194,88 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     //MARK: Model Inference
     //--------------------------
     
-    func loadRoboflowModelWith(model: String, version: Int,  threshold: Double, overlap: Double, maxObjects: Float) {
-        print("RFDEMO: loading model=\(model) version=\(version) apiKeyPrefix=\(String(API_KEY.prefix(4)))…")
-        rf.load(model: model, modelVersion: version) { [self] model, error, modelName, modelType in
-            if let error = error {
-                print("RFDEMO: ❌ MODEL LOAD FAILED: \(error.localizedDescription)")
-                print("RFDEMO: full error = \(String(describing: error))")
-            } else {
-                print("RFDEMO: ✅ MODEL LOADED OK modelName=\(modelName ?? "nil") modelType=\(String(describing: modelType))")
-                roboflowModel = model
-                roboflowModel?.configure(threshold: threshold, overlap: overlap, maxObjects: maxObjects, processingMode: .performance, maxNumberPoints: 20)
-            }
-        }
+    // A single decoded detection in normalized [0,1] coordinates (model/512x512 space).
+    struct Detection {
+        let classId: Int
+        let label: String
+        let confidence: Float
+        let rect: CGRect   // cxcywh converted to xywh, normalized, origin top-left
     }
-    
-    var start: DispatchTime!
-    var end: DispatchTime!
-    
+
+    var inferenceStart: DispatchTime!
     var detecting: Bool = false
-    
+
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
         currentPixelBuffer = pixelBuffer
-        
-        let start: DispatchTime = .now()
-        
-        if !detecting {
-            detecting = true
-            DispatchQueue.global(qos: .userInteractive).async { [self] in
-                roboflowModel?.detect(pixelBuffer: pixelBuffer, completion: { detections, error in
-                    if error != nil {
-                        print(error!)
-                    } else {
-                        let detectionResults: [RFPrediction] = detections!
-                        if detectionResults.count > 0 {
-                            print("RFDEMO: detections=\(detectionResults.count) classes=\(detectionResults.map { ($0.getValues()["class"] as? String) ?? "?" })")
-                        }
-                        self.drawBoundingBoxesFrom(detections: detectionResults)
-                        self.detecting = false
-                        
-                        //Caclulate and display the FPS of the ML inference
-                        DispatchQueue.main.async { [self] in
-                            let duration = start.distance(to: .now())
-                            let durationDouble = duration.toDouble()
-                            var fps = 1 / durationDouble!
-                            fps = round(fps)
-                            fpsLabel.text = String(fps.description) + " FPS"
-                        }
-                    }
-                })
+
+        guard !detecting, let request = visionRequest else { return }
+        detecting = true
+        inferenceStart = .now()
+
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            // .right maps the back-camera landscape buffer to an upright frame for a
+            // portrait-held phone. If on-device boxes look rotated/transposed, this is
+            // the first knob to try (.up / .right / .down / .left).
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
+            do {
+                try handler.perform([request])
+            } catch {
+                print("RFDEMO: inference error \(error)")
+                self?.detecting = false
             }
         }
+    }
+
+    private func sigmoid(_ x: Float) -> Float { 1 / (1 + expf(-x)) }
+
+    // Vision completion: pull the `boxes`/`logits` MLMultiArrays, decode, draw.
+    private func handleDetections(request: VNRequest, error: Error?) {
+        defer { detecting = false }
+        if let error = error { print("RFDEMO: \(error)"); return }
+        guard let results = request.results as? [VNCoreMLFeatureValueObservation] else { return }
+        var boxes: MLMultiArray?
+        var logits: MLMultiArray?
+        for obs in results {
+            if obs.featureName == "boxes" { boxes = obs.featureValue.multiArrayValue }
+            if obs.featureName == "logits" { logits = obs.featureValue.multiArrayValue }
+        }
+        guard let boxes = boxes, let logits = logits else { return }
+        let detections = decode(boxes: boxes, logits: logits)
+
+        DispatchQueue.main.async { [self] in
+            drawBoundingBoxesFrom(detections: detections)
+            if let d = inferenceStart.distance(to: .now()).toDouble(), d > 0 {
+                fpsLabel.text = "\(Int(round(1 / d))) FPS"
+            }
+        }
+    }
+
+    // boxes: (1,300,4) cxcywh normalized; logits: (1,300,4) pre-sigmoid.
+    // Subscript access is dtype-agnostic (model outputs may be fp16).
+    private func decode(boxes: MLMultiArray, logits: MLMultiArray) -> [Detection] {
+        let numQueries = boxes.shape[1].intValue
+        var dets: [Detection] = []
+        for q in 0..<numQueries {
+            var bestId = -1
+            var bestScore: Float = 0
+            for c in classNames.keys {                 // only real classes (1=crop, 2=weed)
+                let s = sigmoid(logits[[0, q, c] as [NSNumber]].floatValue)
+                if s > bestScore { bestScore = s; bestId = c }
+            }
+            guard bestId >= 0, bestScore >= confidenceThreshold else { continue }
+            let cx = boxes[[0, q, 0] as [NSNumber]].floatValue
+            let cy = boxes[[0, q, 1] as [NSNumber]].floatValue
+            let w  = boxes[[0, q, 2] as [NSNumber]].floatValue
+            let h  = boxes[[0, q, 3] as [NSNumber]].floatValue
+            let rect = CGRect(x: CGFloat(cx - w / 2), y: CGFloat(cy - h / 2),
+                              width: CGFloat(w), height: CGFloat(h))
+            dets.append(Detection(classId: bestId, label: classNames[bestId] ?? "?",
+                                  confidence: bestScore, rect: rect))
+        }
+        return dets
     }
     
     //--------------------------
@@ -252,77 +283,55 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     //--------------------------
     
     func setupLayers() {
-        detectionOverlay = CALayer() // Container layer that has all the renderings of the bounding boxes
+        detectionOverlay = CALayer()
         detectionOverlay.name = "DetectionOverlay"
-        detectionOverlay.bounds = CGRect(x: 0.0,
-                                         y: 0.0,
-                                         width: bufferSize.width,
-                                         height: bufferSize.height)
-        detectionOverlay.position = CGPoint(x: rootLayer.bounds.midX, y: rootLayer.bounds.midY)
+        detectionOverlay.frame = rootLayer.bounds
         rootLayer.addSublayer(detectionOverlay)
     }
     
-    func drawBoundingBoxesFrom(detections: [RFPrediction]) {
-            CATransaction.begin()
-            CATransaction.setValue(kCFBooleanTrue, forKey: kCATransactionDisableActions)
-            detectionOverlay.sublayers = nil // Remove all the old recognized objects' bounding boxes from the UI
-            
-            //Extract the dictionary values of the predicted class
-        
-        for detection in detections {
-            let detectionInfo = detection.getValues()
-                guard let detectedValue = detectionInfo["class"] as? String else {
-                    return
-                }
-                
-                guard let confidence = detectionInfo["confidence"] as? Double else {
-                    return
-                }
-                
-                guard let x = detectionInfo["x"] as? Float else {
-                    return
-                }
-                
-                guard let y = detectionInfo["y"] as? Float else {
-                    return
-                }
-                
-                guard let width = detectionInfo["width"] as? Float else {
-                    return
-                }
-                
-                guard let height = detectionInfo["height"] as? Float else {
-                    return
-                }
-                
-                guard let color = detectionInfo["color"] as? [Int] else {
-                    return
-                }
-            
-                
-                let red: Float = Float(color[0])
-                let green: Float = Float(color[1])
-                let blue: Float = Float(color[2])
-                let boundingBoxColor = UIColor(red: CGFloat(red/255), green: CGFloat(green/255), blue: CGFloat(blue/255), alpha: 0.2)
-                let bounds = detectionOverlay.bounds
-                let xs = bounds.width/bufferSize.width
-                let ys = bounds.height/bufferSize.height
-                
-                //Create the CGRect for the bounding box, and draw it on the screen
-                let boundingBox: CGRect = CGRect(x: CGFloat(x)*xs, y: CGFloat(y)*ys, width: CGFloat(width)*xs, height: CGFloat(height)*ys)
-                if let polygon = detectionInfo["points"] as? [[String:Float]] {
-                    let poly = polygon.map { pt in
-                        return CGPoint(x: CGFloat(pt["x"]!), y: CGFloat(pt["y"]!))
-                    }
-                    print("Nume Points: \(poly.count)")
-                    drawPolygonBox(boundingBox: boundingBox, polygon: poly, mask: detectionInfo["mask"] as? [[UInt8]] ?? [[]], color: boundingBoxColor, detectedValue: detectedValue, confidence: confidence)
-                } else {
-                    drawBoundingBox(boundingBox: boundingBox, color: boundingBoxColor, detectedValue: detectedValue, confidence: confidence)
-                }
-                CATransaction.commit()
-            }
-            CATransaction.commit()
+    func drawBoundingBoxesFrom(detections: [Detection]) {
+        CATransaction.begin()
+        CATransaction.setValue(kCFBooleanTrue, forKey: kCATransactionDisableActions)
+        detectionOverlay.sublayers = nil
+
+        // The model saw the frame rotated .right -> an upright portrait image whose
+        // dimensions are (rawHeight x rawWidth). The preview shows that same frame with
+        // .resizeAspectFill (scale to cover the view, center, crop the overflow). Replicate
+        // that transform so normalized model coords land on the right pixels.
+        let viewW = detectionOverlay.bounds.width
+        let viewH = detectionOverlay.bounds.height
+        let frameW = bufferSize.height   // oriented (portrait) width  = raw buffer height
+        let frameH = bufferSize.width    // oriented (portrait) height = raw buffer width
+        guard frameW > 0, frameH > 0 else { CATransaction.commit(); return }
+        let scale = max(viewW / frameW, viewH / frameH)
+        let dW = frameW * scale, dH = frameH * scale
+        let offX = (viewW - dW) / 2, offY = (viewH - dH) / 2
+
+        for det in detections {
+            let viewRect = CGRect(x: det.rect.minX * dW + offX,
+                                  y: det.rect.minY * dH + offY,
+                                  width: det.rect.width * dW,
+                                  height: det.rect.height * dH)
+            let color: UIColor = det.classId == 1 ? .systemGreen : .systemRed  // crop / weed
+            let box = CAShapeLayer()
+            box.frame = detectionOverlay.bounds
+            box.path = UIBezierPath(roundedRect: viewRect, cornerRadius: 4).cgPath
+            box.strokeColor = color.cgColor
+            box.fillColor = color.withAlphaComponent(0.15).cgColor
+            box.lineWidth = 2
+            let label = CATextLayer()
+            label.string = "\(det.label) \(Int(det.confidence * 100))%"
+            label.fontSize = 12
+            label.foregroundColor = UIColor.white.cgColor
+            label.backgroundColor = color.withAlphaComponent(0.85).cgColor
+            label.alignmentMode = .center
+            label.contentsScale = UIScreen.main.scale
+            label.frame = CGRect(x: viewRect.minX, y: max(0, viewRect.minY - 15), width: 64, height: 15)
+            detectionOverlay.addSublayer(box)
+            detectionOverlay.addSublayer(label)
         }
+        CATransaction.commit()
+    }
     
     //Create a bounding box and add it as a layer to the UI
     func drawBoundingBox(boundingBox: CGRect, color: UIColor, detectedValue: String, confidence: Double) {
@@ -436,27 +445,10 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         return shapeLayer
     }
     
-    //Update the position of the bounding-box overlay
+    // Keep the detection overlay aligned with the preview. Boxes are positioned in
+    // screen coords via layerRectConverted, so no rotation transform is needed.
     func updateLayerGeometry() {
-        let bounds = rootLayer.bounds
-        var scale: CGFloat
-        
-        let xScale: CGFloat = bounds.size.width / CGFloat(bufferSize.height)
-        let yScale: CGFloat = bounds.size.height / CGFloat(bufferSize.width)
-        
-        scale = fmax(xScale, yScale)
-        if scale.isInfinite {
-            scale = 1.0
-        }
-        CATransaction.begin()
-        CATransaction.setValue(kCFBooleanTrue, forKey: kCATransactionDisableActions)
-        
-        // Rotate the layer into screen orientation and scale and mirror
-        detectionOverlay.setAffineTransform(CGAffineTransform(rotationAngle: CGFloat(.pi / 2.0)).scaledBy(x: scale, y: scale))
-        // Center the layer
-        detectionOverlay.position = CGPoint (x: bounds.midX, y: bounds.midY)
-        
-        CATransaction.commit()
+        detectionOverlay?.frame = rootLayer.bounds
     }
     
     //--------------------------
@@ -498,7 +490,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     
     //Uploads the incorrect classification frame
     func upload(image: UIImage) {
-        let project = "roboflow-mask-wearing-ios"
+        let project = "weed-crop-aerial-mbyst"
         
         rf.uploadImage(image: image, project: project) { result in
             var title: String!

@@ -35,16 +35,6 @@
                                     <action selector="uploadImage:" destination="BYZ-38-t0r" eventType="touchUpInside" id="Cdi-kv-iqL"/>
                                 </connections>
                             </button>
-                            <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="Y5o-R4-S9b">
-                                <rect key="frame" x="94" y="119" width="226" height="32"/>
-                                <segments>
-                                    <segment title="Front Camera"/>
-                                    <segment title="Back Camera"/>
-                                </segments>
-                                <connections>
-                                    <action selector="changeCameraDirection:" destination="BYZ-38-t0r" eventType="valueChanged" id="Vzb-B6-11x"/>
-                                </connections>
-                            </segmentedControl>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
@@ -52,15 +42,12 @@
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="TQw-i1-0TK" secondAttribute="bottom" constant="109" id="8Z9-Ka-L5T"/>
                             <constraint firstItem="Nqd-Ac-qQL" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="205" id="9rf-EY-vKr"/>
                             <constraint firstItem="Nqd-Ac-qQL" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="9yE-dI-tqq"/>
-                            <constraint firstItem="Y5o-R4-S9b" firstAttribute="centerX" secondItem="Nqd-Ac-qQL" secondAttribute="centerX" id="Beg-QS-1bu"/>
                             <constraint firstItem="TQw-i1-0TK" firstAttribute="top" secondItem="Nqd-Ac-qQL" secondAttribute="bottom" constant="43" id="EFY-Ok-aWj"/>
                             <constraint firstItem="zHx-8I-3lN" firstAttribute="centerX" secondItem="6Tk-OE-BBY" secondAttribute="centerX" id="NEf-ei-Tbj"/>
-                            <constraint firstItem="Y5o-R4-S9b" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="94" id="RTY-EP-B0Q"/>
                             <constraint firstItem="TQw-i1-0TK" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="45" id="Wfo-ho-5qI"/>
                             <constraint firstItem="Nqd-Ac-qQL" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" id="cQc-N3-CLg"/>
                             <constraint firstItem="zHx-8I-3lN" firstAttribute="top" secondItem="TQw-i1-0TK" secondAttribute="bottom" constant="44" id="fIC-Tb-hb1"/>
                             <constraint firstItem="TQw-i1-0TK" firstAttribute="centerX" secondItem="Nqd-Ac-qQL" secondAttribute="centerX" id="h5R-S6-uCl"/>
-                            <constraint firstItem="Y5o-R4-S9b" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="71" id="wYH-qr-v1Q"/>
                         </constraints>
                     </view>
                     <connections>

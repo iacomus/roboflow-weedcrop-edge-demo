@@ -70,8 +70,8 @@ def main():
         path = os.path.join(DS, fname[iid])
         if not os.path.exists(path):
             continue
-        x, _ = preprocess(path)
-        p = model.predict({"input": x})
+        x, im = preprocess(path)
+        p = model.predict({"image": im})
         boxes, logits = p["boxes"][0], p["logits"][0]
         dets = decode(boxes, logits)
         gt_counts = Counter(cats[c] for c in gt[iid])
@@ -103,7 +103,7 @@ def main():
     with torch.no_grad():
         o = net(torch.from_numpy(x))
     pb, pl = o["pred_boxes"][0].numpy(), o["pred_logits"][0].numpy()
-    p = model.predict({"input": x})
+    p = model.predict({"image": im0})
     cb, cl = p["boxes"][0], p["logits"][0]
     print(f"  boxes  max|d| = {np.abs(pb - cb).max():.4e}")
     print(f"  logits max|d| = {np.abs(pl - cl).max():.4e}")
@@ -116,7 +116,7 @@ def main():
     # ---- render the busiest sampled image ----
     busiest = max(detail, key=lambda d: d[3])[0] if detail else fname[sample_ids[0]]
     x, im = preprocess(os.path.join(DS, busiest))
-    p = model.predict({"input": x})
+    p = model.predict({"image": im})
     dets = decode(p["boxes"][0], p["logits"][0])
     colors = {1: (0, 200, 0), 2: (220, 40, 40)}  # crop=green, weed=red (assuming ch1/2)
     dr = ImageDraw.Draw(im)

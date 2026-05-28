@@ -115,8 +115,14 @@ def main():
         def __init__(self, net):
             super().__init__()
             self.net = net
+            # ImageNet normalization baked in so the .mlpackage accepts a plain
+            # RGB image (CoreML ImageType feeds [0,1] via scale=1/255) and iOS
+            # Vision can drive it without manual MLMultiArray construction.
+            self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+            self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
 
         def forward(self, x):
+            x = (x - self.mean) / self.std
             o = self.net(x)
             return o["pred_boxes"], o["pred_logits"]
 
@@ -162,22 +168,26 @@ def main():
     print("[export] trace OK -> converting to CoreML mlprogram ...")
     mlmodel = ct.convert(
         traced,
-        inputs=[ct.TensorType(name="input", shape=(1, 3, R, R))],
+        inputs=[ct.ImageType(name="image", shape=(1, 3, R, R), scale=1 / 255.0,
+                             bias=[0.0, 0.0, 0.0], color_layout=ct.colorlayout.RGB)],
         outputs=[ct.TensorType(name="boxes"), ct.TensorType(name="logits")],
         minimum_deployment_target=ct.target.iOS16,
         convert_to="mlprogram",
     )
-    mlmodel.short_description = "RF-DETR Small weed/crop detector (512x512). boxes=cxcywh norm; logits pre-sigmoid."
-    mlmodel.input_description["input"] = "1x3x512x512 RGB, ImageNet-normalized (mean .485/.456/.406, std .229/.224/.225)"
+    mlmodel.short_description = ("RF-DETR Small weed/crop detector. Input: 512x512 RGB image. "
+                                 "boxes=cxcywh normalized [0,1]; logits pre-sigmoid; class channel 1=crop, 2=weed.")
+    mlmodel.input_description["image"] = "512x512 RGB image (ImageNet normalization handled inside the model)"
     mlmodel.save(OUT)
     print(f"[export] saved {OUT}")
 
-    print("[export] validating: load mlpackage + predict ...")
+    print("[export] validating: load mlpackage + predict on an image ...")
     loaded = ct.models.MLModel(OUT)
     spec = loaded.get_spec()
-    print("  inputs :", [i.name for i in spec.description.input])
+    print("  inputs :", [(i.name, i.type.WhichOneof("Type")) for i in spec.description.input])
     print("  outputs:", [o.name for o in spec.description.output])
-    pred = loaded.predict({"input": np.random.rand(1, 3, R, R).astype(np.float32)})
+    from PIL import Image
+    img = Image.fromarray((np.random.rand(R, R, 3) * 255).astype(np.uint8))
+    pred = loaded.predict({"image": img})
     for k, v in pred.items():
         print(f"  out {k}: shape={getattr(v, 'shape', type(v).__name__)}")
     print("[export] CoreML validation OK")
