@@ -53,7 +53,7 @@ Picking the target is itself a discovery conversation: *"show me the deployment 
 
 Worth flagging the hardware evolution underneath: agricultural aerial imagery was historically dominated by **fixed-wing UAVs** (longer flight time, larger area coverage); robust **multirotor agricultural drones** with multispectral payloads and the Jetson-class on-board compute they need are a much more recent capability. The platform shift isn't just "better software" — it's better software running on a new generation of edge hardware that genuinely didn't exist for this use case until the past few years.
 
-**Total build wall-clock**: roughly _TODO: actual hours_ across 2 days.
+**Total build wall-clock**: roughly two evenings and a morning.
 
 | Metric | Value |
 |---|---|
