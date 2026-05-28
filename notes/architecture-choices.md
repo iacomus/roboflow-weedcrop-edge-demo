@@ -15,21 +15,29 @@ Picked from the [Roboflow 100 benchmark](https://github.com/roboflow-ai/roboflow
 
 The RF100 snapshot has a better-characterised baseline and a stronger narrative anchor — using a dataset from the platform's own benchmark suite signals familiarity with the platform's research output, not just its dataset library.
 
-## Empirical confirmation: YOLOv5 baseline does NOT deploy via the iOS SDK
+## Empirical deployment investigation (iPhone 17 Pro, SDK 1.2.7)
 
-Before training our own model, I tested deploying the RF100 published baseline (`weed-crop-aerial`, YOLOv5, 79.8% mAP@50) directly to an iPhone 17 Pro via the Roboflow Swift SDK. Result:
+Before relying on our own model, I systematically tested the iOS SDK's dynamic model-loading path. The journey:
 
-- **Model resolution + download succeeded** — the bare project slug `weed-crop-aerial` + a personal API key resolved and pulled the public model (cross-workspace public loading works).
-- **CoreML parse FAILED** at load time:
-  ```
-  Error Domain=com.apple.mlassetio Code=1
-  "Failed to parse the model specification.
-   Error: Field number 7 has wireType 4, which is not supported."
-  ```
+| Test model | Architecture | Result |
+|---|---|---|
+| `weed-crop-aerial` (RF100 baseline) | YOLOv5 | ❌ `com.apple.mlassetio Code=1` — "Field number 7 has wireType 4" (CoreML protobuf parse failure) |
+| `cash-counter` (Roboflow's App Store demo) | old format | ❌ same `wireType` error — **proves it's not architecture- or model-specific** |
+| `rf-detr-cfhln` (public) | RF-DETR | ⚠️ `ZipExtractionError Code=3` — no CoreML export was built for that project |
+| `glasses-detection-zkmto` v2 (blog tutorial) | RF-DETR | ✅ **`MODEL LOADED OK modelType=rfdetr-nano`** |
 
-This is a protobuf deserialization failure in Apple's CoreML loader — the YOLOv5 CoreML conversion can't be parsed by the device runtime. Confirms the SDK docs (which list only RF-DETR, YoloLite, and Classification as CoreML-deployable) and validates the decision to train our own RF-DETR rather than reuse the published YOLOv5 checkpoint.
+### Root cause
+The `wireType` error is a **known, long-standing Roboflow Swift SDK bug** in the dynamic download→extract→parse pipeline — reported in [roboflow/external-bugtracker#4](https://github.com/roboflow/external-bugtracker/issues/4) back in 2022 (macOS Monterey) and still open. It fails to parse **older CoreML model formats**. It is NOT iOS-version- or device-specific (reproduced on Monterey, iOS 17, and iOS 26).
 
-**The SA takeaway**: the model that wins the benchmark (79.8% mAP) can't deploy to the edge target at all. Architecture/deployment compatibility belongs in early discovery, not at deployment time.
+The Cash Counter App Store app works because it **bundles a precompiled model** and loads it via standard CoreML APIs, bypassing the SDK's broken dynamic-load path entirely.
+
+RF-DETR support landed in the SDK after pod 1.2.3 ([roboflow/roboflow-swift#17](https://github.com/roboflow/roboflow-swift/issues/17)); we're on 1.2.7. A known-working RF-DETR model (`glasses-detection-zkmto` v2, from Roboflow's own RF-DETR-on-iOS blog) **loads cleanly on the device**, confirming the SDK + device + CoreML pipeline works end-to-end for properly-exported RF-DETR.
+
+### Why this matters for the architecture choice
+This is the strongest possible validation of choosing RF-DETR: **YOLOv5 and old-format models literally cannot load via the SDK's runtime path, while current RF-DETR exports do.** The benchmark-winning YOLOv5 baseline (79.8% mAP) can't deploy to the edge at all through this path; RF-DETR can.
+
+### The SA takeaway
+Deployment-path compatibility is a discovery-phase question, not a deployment-phase surprise. Systematic isolation (test the baseline, test a known-good model of the same architecture, research the error, get positive confirmation) is how you de-risk an edge-CV deal before committing the customer to a path. The 5-test debugging sequence here is exactly the diligence an SA does before telling a customer "yes, this will run on your hardware."
 
 ## Model architecture: RF-DETR
 
