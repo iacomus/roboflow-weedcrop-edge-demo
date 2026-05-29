@@ -74,7 +74,7 @@ This directly informs the local-training config below: a 50-epoch cap with patie
 
 Roboflow's **hosted training is free**, but **exporting a custom model's weights to CoreML for on-device iOS is a paid (Core-plan) feature** — and the 14-day Premium Trial does *not* unlock it (weights/CoreML export stays gated even on the trial). The free Public tier gives you hosted-API inference for custom models, but not the artifact you need to bundle in an app.
 
-To get genuine on-device deployment at $0 and ToS-clean, we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves for on-device use (see the *export caveat* below — rfdetr exports ONNX/TFLite natively; CoreML is a direct PyTorch→CoreML trace with ONNX Runtime as fallback). Open-source architecture + our own dataset + Roboflow's own open-source export tooling — fully sanctioned.
+To get genuine on-device deployment at $0 and ToS-clean, we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves for on-device use (see the *export caveat* below — rfdetr exports ONNX/TFLite natively; getting to CoreML is a direct PyTorch→CoreML trace, with ONNX Runtime Mobile as the lower-effort alternative on-device runtime if you'd rather not own the CoreML conversion). Open-source architecture + our own dataset + Roboflow's own open-source export tooling — fully sanctioned.
 
 ### Environment (Apple Silicon, M-series)
 
@@ -183,4 +183,4 @@ All on-device artifacts are produced locally from `checkpoint_best_ema.pth` (ope
 - **Class-channel mapping resolved** (logits is width-4 for 2 real classes): **channel 1 = crop, channel 2 = weed**. Channels 0 (the COCO `weed-crop-aerial` supercategory placeholder) and 3 (padding) never fire. Boxes are **cxcywh, normalized to [0,1]**. This is exactly what the Swift-side decode needs (sigmoid logits → argmax over channels 1/2 → cxcywh→xyxy × image size).
 - **PyTorch parity:** the meaningful detections match the original bicubic PyTorch model to ~0.01 in score (top-5 near-identical). The larger raw max|d| (boxes ~1.0, logits ~4.0) is confined to low-confidence *background* queries, so the bilinear-pos-embed + fp16 approximation is immaterial to output.
 
-_Still TODO: iPhone 17 Pro on-device inference FPS (measure after Swift integration)._
+Measured on device after Swift integration: **~23 FPS / 44 ms** per frame on-device (edge / CoreML) vs **~7 FPS / 154 ms** via the Roboflow hosted API (cloud), compared live with the in-app toggle. See the main README's metric table.

@@ -3,8 +3,25 @@
 > Real-time weed/crop detection on iPhone via Roboflow — and a view of what happens to the customer conversation once dataset collection, annotation, model training, and edge deployment all become platform features instead of bespoke engineering programs.
 
 - **Dataset**: [`roboflow-100/weed-crop-aerial`](https://universe.roboflow.com/roboflow-100/weed-crop-aerial)
-- **Model**: RF-DETR via Roboflow hosted training
+- **Model**: RF-DETR — Roboflow hosted training (cloud path) + open-source `rfdetr` self-converted to CoreML (on-device path)
 - **Deployment**: iPhone via [`roboflow-swift`](https://github.com/roboflow/roboflow-swift)
+
+---
+
+## Demo
+
+The same RF-DETR model, the same frame, two deployment paths — switched live with the in-app toggle:
+
+https://github.com/user-attachments/assets/85932040-14c1-4d5c-9691-686a2c9e2ac2
+
+*In the clip: **Edge** runs on-device at ~24 FPS → flip to **Cloud** (Roboflow hosted API, slower per-frame round-trips) → turn **Wi-Fi off** and Cloud drops to `offline` while the on-device model keeps detecting without missing a beat → switch back to **Edge**, uninterrupted. The connectivity argument for edge, made on screen rather than on a slide.*
+
+| Edge — on-device CoreML | Cloud — Roboflow hosted API |
+|---|---|
+| ![Edge mode: on-device CoreML inference at 23 FPS](assets/screenshots/edge-inference.png) | ![Cloud mode: Roboflow hosted API, 154 ms round-trip](assets/screenshots/cloud-inference.png) |
+| `EDGE · 23 FPS · 44 ms` | `CLOUD · 7 FPS · 154 ms` |
+
+On-device inference is ~3× the throughput and runs with no connectivity; the hosted path needs a round-trip per frame. The count card reads the **crop stand count** (weeds detected but excluded from the count), and the *"Upload Incorrect Image"* button feeds field corrections back to the dataset. The edge and cloud boxes differ slightly because they run different checkpoints of the same architecture (Colab-trained on-device vs Roboflow-hosted) — the point isn't numeric parity, it's that one trained model deploys both ways.
 
 ---
 
@@ -22,13 +39,13 @@ We already had a working object-detection algorithm for sunflowers, but it didn'
 
 ## What this collapses to on Roboflow today
 
-The same use case now lands in a few hours of work — because the two most expensive things in the original project (**collecting and labeling the dataset** and **training a custom algorithm from scratch**) are off-the-shelf:
+The same use case now lands in a weekend — because the two most expensive things in the original project (**collecting and labeling the dataset** and **training a custom algorithm from scratch**) are off-the-shelf:
 
 1. **The dataset is open source.** Forked [`roboflow-100/weed-crop-aerial`](https://universe.roboflow.com/roboflow-100/weed-crop-aerial) — 1,176 pre-labeled aerial weed/crop images derived from peer-reviewed agritech research ([Sudars et al. 2020](https://www.sciencedirect.com/science/article/pii/S2352340920307277)), shipped as part of the Intel-sponsored [Roboflow 100 benchmark](https://github.com/roboflow-ai/roboflow-100-benchmark). **No annotation project needed.**
-2. **The model architectures are pre-built and edge-ready.** Trained an **RF-DETR** variant via Roboflow hosted training — chosen over YOLOv5 for native CoreML compatibility and better on-device latency. The customer's original problem statement was *"build us a maize-counting algorithm from scratch."* The platform-era equivalent is *"pick a variant from the library."*
+2. **The model architectures are pre-built and edge-ready.** Trained an **RF-DETR** variant via Roboflow hosted training — chosen over YOLOv5 because RF-DETR is what actually deploys through the Swift SDK's CoreML path (YOLOv5 doesn't — see reframing #2), and it's Roboflow's current edge-optimised model. The customer's original problem statement was *"build us a maize-counting algorithm from scratch."* The platform-era equivalent is *"pick a variant from the library."*
 3. **Deployment is an SDK call.** iPhone 17 Pro via the [`roboflow-swift`](https://github.com/roboflow/roboflow-swift) SDK, built on top of [`roboflow-ios-starter`](https://github.com/roboflow/roboflow-ios-starter). (See reframing #4 below — the on-device artifact is trained with the open-source `rf-detr` package and converted on our own machine, since Roboflow's hosted CoreML export is a paid platform feature.)
 4. **The labeling loop inverts.** Added a count-card overlay (crop stand count as the hero metric, with weeds detected but shown as the *excluded* confounder — mirroring the original engagement, where stand count was the decision and weeds were the thing to filter out) and an *"Incorrect Detection?"* button wired to `rf.uploadImage()` — so the field scout *using* the app becomes the labeler *in the flow of work*, replacing the original project's centralized 5-user consensus labeling.
-5. **Edge vs. cloud is a live toggle.** The app runs the *same* detection task two ways — on-device CoreML and the Roboflow hosted API — switchable with an in-app segmented control. The latency/throughput trade-off (and what happens when connectivity drops) is something you watch on screen rather than argue about in the abstract (see reframing #3, and the Demo below).
+5. **Edge vs. cloud is a live toggle.** The app runs the *same* detection task two ways — on-device CoreML and the Roboflow hosted API — switchable with an in-app segmented control. The latency/throughput trade-off (and what happens when connectivity drops) is something you watch on screen rather than argue about in the abstract (see reframing #3, and the demo clip at the top).
 
 Read together, those five points are the **Roboflow lifecycle end-to-end** — dataset (Universe) → AI-assisted annotation + the in-app feedback loop → hosted training → deploy to edge *and* cloud. The platform's value isn't any single one of them; it's that they're one integrated path where each step feeds the next, instead of five separate engineering programs stitched together by hand — which is exactly what the original 12-month build was.
 
@@ -46,7 +63,7 @@ The demo runs on iPhone because it's the most accessible edge target for a demo 
 
 The *millisecond* latency driver — the one people reach for first — notably **doesn't** apply: counting fires no instant actuator. Edge still wins on the other three. That discrimination is the whole point (see reframing #3): edge-vs-cloud is a per-use-case decision, not a reflex.
 
-The same trained model also targets adjacent edge deployments via Roboflow's paths (CoreML for iOS, ONNX/TensorRT for Jetson, Inference Server for x86):
+The same trained model also targets adjacent edge deployments via Roboflow's paths (CoreML for iOS, ONNX/TensorRT for Jetson, and the self-hosted Roboflow Inference server on x86 or ARM):
 
 - **Jetson on a multirotor agricultural drone** — plot phenotyping at flight pace, on-board inference for in-flight coverage decisions
 - **On-board module on a precision-spray robot** — the *real-time weed-control* case: per-row herbicide-nozzle decisions (the John Deere See & Spray family). A different objective the same stack enables — but **not** what the original breeding engagement was about.
@@ -68,32 +85,15 @@ Worth flagging the hardware evolution underneath: agricultural aerial imagery wa
 
 ---
 
-## Demo
-
-The same RF-DETR model, the same frame, two deployment paths — switched live with the in-app toggle:
-
-https://github.com/user-attachments/assets/85932040-14c1-4d5c-9691-686a2c9e2ac2
-
-*In the clip: **Edge** runs on-device at ~24 FPS → flip to **Cloud** (Roboflow hosted API, slower per-frame round-trips) → turn **Wi-Fi off** and Cloud drops to `offline` while the on-device model keeps detecting without missing a beat → switch back to **Edge**, uninterrupted. The connectivity argument for edge, made on screen rather than on a slide.*
-
-| Edge — on-device CoreML | Cloud — Roboflow hosted API |
-|---|---|
-| ![Edge mode: on-device CoreML inference at 23 FPS](assets/screenshots/edge-inference.png) | ![Cloud mode: Roboflow hosted API, 154 ms round-trip](assets/screenshots/cloud-inference.png) |
-| `EDGE · 23 FPS · 44 ms` | `CLOUD · 7 FPS · 154 ms` |
-
-On-device inference is ~3× the throughput and runs with no connectivity; the hosted path needs a round-trip per frame. The count card reads the **crop stand count** (weeds detected but excluded from the count), and the *"Upload Incorrect Image"* button feeds field corrections back to the dataset. The edge and cloud boxes differ slightly because they run different checkpoints of the same architecture (Colab-trained on-device vs Roboflow-hosted) — the point isn't numeric parity, it's that one trained model deploys both ways.
-
----
-
 ## What this changes about the customer conversation
 
 The reframings that come out of actually building this:
 
 1. **The biggest cost line in the original engagement was data, not modeling.** Collecting raw imagery, building the annotation tool, running the 5-user-consensus labeling project — that was the bulk of the 12 months. The model was downstream. Today the open-source dataset library + the in-app *"Incorrect Detection?"* feedback button collapse both ends of the data lifecycle. That's a different customer business case to discover against, not just a different tech stack. And it collapses the *team*, not only the cost: what took multiple specialised teams across ~12 months, one developer rebuilt on the platform in a weekend — which is Roboflow's actual enterprise pitch, *enable the developers you already have instead of standing up an ML team for every vision project*. (Honest caveat: the one genuinely senior-engineering step was the CoreML self-conversion in #4 — and the turnkey paid path removes even that.)
-2. **Edge isn't a deployment afterthought; it's an architecture decision upstream.** RF-DETR vs. YOLOv5 isn't an academic comparison — it determines whether the model can ship to iOS via the Swift SDK, to a Jetson via TensorRT, or only via the hosted API. Surfacing this trade-off in early discovery — not at deployment time — is what de-risks the deal. (Building this surfaced a concrete instance: YOLOv5 and old-format models don't load through the Swift SDK's runtime path — traced to a [documented SDK issue](https://github.com/roboflow/external-bugtracker/issues/4) affecting older CoreML formats — while current RF-DETR exports do. Deployment-path compatibility is a discovery question.)
+2. **Edge isn't a deployment afterthought; it's an architecture decision upstream.** RF-DETR vs. YOLOv5 isn't an academic comparison — it determines whether the model can ship to iOS via the Swift SDK, to a Jetson via TensorRT, or only via the hosted API. Surfacing this trade-off in early discovery — not at deployment time — is what de-risks the deal. (Building this surfaced a concrete instance: YOLOv5 and old-format models don't load through the Swift SDK's runtime path — traced to a [documented, still-open SDK issue](https://github.com/roboflow/external-bugtracker/issues/4) affecting older CoreML formats (reproduced on `roboflow-swift` 1.2.7) — while current RF-DETR exports do. Deployment-path compatibility is a discovery question.)
 3. **Edge vs. cloud is a *use-case* decision, not a default.** "Put it on the device" is right only when the inference is coupled to a real-time action and/or runs without connectivity. The original breeding rig is the clean example: per-plant counting was a *batch/cloud* workload — capture the season, process later — but moving it on-rig (to catch a bad row while the growth-stage window is still open, and to avoid hauling 600 km of raw imagery off every field) makes it an *edge* one, **even though nothing fires in milliseconds**. Same model; the target follows the decision latency and the connectivity, not a reflex for "on-device." The framework (latency-to-action, connectivity, volume economics) is in [`notes/architecture-choices.md`](notes/architecture-choices.md).
 4. **"Free to prototype, paid to ship to the edge" — and the paid fence is rational.** Roboflow gives away GPU training and the hosted-API endpoint; the downloadable CoreML artifact for *offline, on-device* deployment is a paid (Core-plan) feature. That's a sensible fence — and the platform earns it: it does the PyTorch→CoreML conversion **turnkey and maintains it** across model config, OS, and `coremltools` versions. I took the open-source self-host path instead (train + export RF-DETR myself at $0) and reached a validated `.mlpackage` that matches the open model bit-for-bit — but only via senior ML-engineering: a rank-safe rewrite of deformable attention (its rank-6 sampling tensor exceeds CoreML's rank-5 cap) plus version-specific converter patches. So the build-vs-buy question isn't *"can you?"* — it's *"do you want to **own** that conversion and its upkeep?"* Having done it, I can have that conversation honestly. (Full teardown in [`notes/training-setup.md`](notes/training-setup.md).)
-5. **The platform replaces the *workflow that wraps the model*, not the model itself.** The model is commodity; the labeling tooling, hosted training, edge runtime, and data-feedback loop are what the customer is actually buying. Selling Roboflow well means leading with workflow, not weights.
+5. **The platform replaces the *workflow that wraps the model*, not the model itself.** The model is commodity; the labeling tooling, hosted training, edge runtime, and data-feedback loop are what the customer is actually buying — so I'd lead a Roboflow conversation with the workflow, not the weights.
 
 ---
 
@@ -116,7 +116,7 @@ cd "ios/Roboflow Starter Project" && pod install
 open "Roboflow Starter Project.xcworkspace"
 
 # 5. In Xcode: select your team under Signing & Capabilities,
-#    plug in an iPhone (iOS 15.4+), Build & Run
+#    plug in an iPhone (iOS 16.6+), Build & Run
 ```
 
 Secrets are kept out of git: copy the committed `Secrets.example.swift` to `Secrets.swift` (gitignored) and fill in your key. The app reads `Secrets.apiKey` / `Secrets.model` / `Secrets.modelVersion`. First time only, add `Secrets.swift` to the app target in Xcode (the template's header has the steps).
@@ -138,8 +138,6 @@ See [`notes/architecture-choices.md`](notes/architecture-choices.md) for the rat
 - Why iPhone rather than Raspberry Pi or Jetson for this demo
 
 The exact training setup, the hosted-model results (and the peak-then-overfit training dynamics), and the local RF-DETR training pipeline are in [`notes/training-setup.md`](notes/training-setup.md). The customer-story background is in [`notes/customer-story-background.md`](notes/customer-story-background.md).
-
----
 
 ---
 
