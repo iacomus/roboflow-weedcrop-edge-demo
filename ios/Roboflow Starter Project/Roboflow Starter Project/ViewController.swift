@@ -76,11 +76,19 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 
         countCard.translatesAutoresizingMaskIntoConstraints = false
 
-        uploadButton.setTitle("Upload Incorrect Image", for: .normal)
-        uploadButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
-        uploadButton.setTitleColor(.white, for: .normal)
-        uploadButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
-        uploadButton.layer.cornerRadius = 18
+        var uploadConfig = UIButton.Configuration.plain()
+        uploadConfig.title = "Upload Incorrect Image"
+        uploadConfig.baseForegroundColor = .white
+        uploadConfig.background.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        uploadConfig.background.cornerRadius = 18
+        // Horizontal breathing room so the title isn't flush against the pill's edges.
+        uploadConfig.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)
+        uploadConfig.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attrs in
+            var attrs = attrs
+            attrs.font = .systemFont(ofSize: 15, weight: .semibold)
+            return attrs
+        }
+        uploadButton.configuration = uploadConfig
         uploadButton.addTarget(self, action: #selector(uploadImage(_:)), for: .touchUpInside)
         uploadButton.translatesAutoresizingMaskIntoConstraints = false
 
