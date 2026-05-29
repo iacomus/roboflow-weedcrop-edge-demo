@@ -74,7 +74,7 @@ This directly informs the local-training config below: a 50-epoch cap with patie
 
 Roboflow's **hosted training is free**, but **exporting a custom model's weights to CoreML for on-device iOS is a paid (Core-plan) feature** — and the 14-day Premium Trial does *not* unlock it (weights/CoreML export stays gated even on the trial). The free Public tier gives you hosted-API inference for custom models, but not the artifact you need to bundle in an app.
 
-To get genuine on-device deployment at $0 and ToS-clean, we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves for on-device use (see the *export caveat* below — rfdetr exports ONNX/TFLite natively; getting to CoreML is a direct PyTorch→CoreML trace, with ONNX Runtime Mobile as the lower-effort alternative on-device runtime if you'd rather not own the CoreML conversion). Open-source architecture + our own dataset + Roboflow's own open-source export tooling — fully sanctioned.
+To get genuine on-device deployment at $0 and ToS-clean, we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves for on-device use (see the *export caveat* below — rfdetr exports ONNX/TFLite natively; getting to CoreML is a direct PyTorch→CoreML trace, with ONNX Runtime Mobile as the lower-effort alternative runtime — though likely CPU-bound on iOS and slower than CoreML on the Neural Engine, which is why CoreML was worth the effort for a real-time demo; I didn't benchmark the ONNX path on-device, so that's an architectural expectation, not a measured number). Open-source architecture + our own dataset + Roboflow's own open-source export tooling — fully sanctioned.
 
 ### Environment (Apple Silicon, M-series)
 
