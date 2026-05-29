@@ -76,11 +76,12 @@ Going with RF-DETR also signals alignment with Roboflow's current roadmap — it
 
 ## Why not Raspberry Pi for the demo
 
-Initially considered a Raspberry Pi 3 as the edge target (I have one running OctoPi for a 3D printer). Ruled out for three reasons:
+Initially considered a Raspberry Pi 3 as the edge target (I have one running OctoPi for a 3D printer). Ruled out on the engineering merits:
 
 1. **Performance ceiling**. Pi 3's 1.2 GHz ARM + 1 GB RAM struggles with modern object-detection models — expect 1-3 FPS even for YOLOv8n / RF-DETR Nano. iPhone Neural Engine runs the same workload at 30-130 FPS depending on generation.
 2. **Use-case fit**. A crop-scout walking through a field naturally holds a phone, not a tethered Pi. Phones are the realistic deployment target for the demo's "field worker" persona; Pis fit "fixed-mount monitoring" or "tractor-cabin compute" — different customer conversation.
-3. **Risk to existing setup**. Repurposing my Pi 3 would mean either flashing over the OctoPi image (destructive) or buying a new SD card. iPhone has neither problem.
+
+(Leaving the Pi on 3D-printer duty was a minor convenience, not a deciding factor — a Pi 4/5 or Jetson would clear the performance bar; the Pi 3 specifically doesn't.)
 
 A Pi-based deployment is still the right answer for some real customers (autonomous tractor compute, fixed greenhouse monitoring), and worth raising in customer discovery — but it's not the right *demo* target.
 
