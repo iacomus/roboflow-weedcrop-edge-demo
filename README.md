@@ -72,14 +72,14 @@ Worth flagging the hardware evolution underneath: agricultural aerial imagery wa
 
 The same RF-DETR model, the same frame, two deployment paths — switched live with the in-app toggle:
 
+https://github.com/user-attachments/assets/85932040-14c1-4d5c-9691-686a2c9e2ac2
+
 | Edge — on-device CoreML | Cloud — Roboflow hosted API |
 |---|---|
 | ![Edge mode: on-device CoreML inference at 23 FPS](assets/screenshots/edge-inference.png) | ![Cloud mode: Roboflow hosted API, 154 ms round-trip](assets/screenshots/cloud-inference.png) |
 | `EDGE · 23 FPS · 44 ms` | `CLOUD · 7 FPS · 154 ms` |
 
 On-device inference is ~3× the throughput and runs with no connectivity; the hosted path needs a round-trip per frame. The count card reads the **crop stand count** (weeds detected but excluded from the count), and the *"Upload Incorrect Image"* button feeds field corrections back to the dataset. The edge and cloud boxes differ slightly because they run different checkpoints of the same architecture (Colab-trained on-device vs Roboflow-hosted) — the point isn't numeric parity, it's that one trained model deploys both ways.
-
-_TODO: insert demo video link or embedded clip_
 
 ---
 
