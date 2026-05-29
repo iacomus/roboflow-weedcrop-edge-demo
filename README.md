@@ -102,9 +102,10 @@ The reframings that come out of actually building this:
 git clone https://github.com/iacomus/roboflow-weedcrop-edge-demo.git
 cd roboflow-weedcrop-edge-demo
 
-# 2. Add your Roboflow credentials (never committed)
-cp .env.example .env          # then edit .env with your API key, model, version
-./scripts/gen-secrets.sh      # generates the gitignored Secrets.swift from .env
+# 2. Add your Roboflow API key (never committed)
+cd "ios/Roboflow Starter Project/Roboflow Starter Project"
+cp Secrets.example.swift Secrets.swift   # then edit Secrets.swift with your API key
+cd -
 
 # 3. Install pods (the Podfile lives in the nested project dir)
 cd "ios/Roboflow Starter Project" && pod install
@@ -116,7 +117,7 @@ open "Roboflow Starter Project.xcworkspace"
 #    plug in an iPhone (iOS 15.4+), Build & Run
 ```
 
-Secrets are kept out of git: `.env` (your keys) and the generated `Secrets.swift` are both gitignored; `scripts/gen-secrets.sh` reads `.env` and writes `Secrets.swift`, which the app reads via `Secrets.apiKey` / `Secrets.model` / `Secrets.modelVersion`.
+Secrets are kept out of git: copy the committed `Secrets.example.swift` to `Secrets.swift` (gitignored) and fill in your key. The app reads `Secrets.apiKey` / `Secrets.model` / `Secrets.modelVersion`. First time only, add `Secrets.swift` to the app target in Xcode (the template's header has the steps).
 
 You'll need: Xcode, CocoaPods, a free Apple ID for signing, and a Roboflow account.
 

@@ -22,4 +22,4 @@ pod install
 open *.xcworkspace
 ```
 
-Don't commit your API key. The `.gitignore` at the repo root excludes `APIKey.swift` and `Secrets.swift` patterns — keep the API key in one of those.
+Don't commit your API key. Copy `Secrets.example.swift` to `Secrets.swift` (gitignored at the repo root) and put your key there.
