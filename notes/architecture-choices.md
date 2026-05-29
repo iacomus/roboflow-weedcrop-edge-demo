@@ -44,10 +44,15 @@ Deployment-path compatibility is a discovery-phase question, not a deployment-ph
 Once RF-DETR was confirmed loadable on-device, the remaining blocker was getting *our own* trained model into a bundle-able CoreML artifact. Two findings:
 
 1. **CoreML / weights export for a custom model is a paid (Core-plan) feature.** Attempting to download our model produced `ZipExtractionError` / "No relevant model files found in ZIP" — because no CoreML export had been built for the project. The free Public tier supports **hosted-API inference** for custom models, but not the downloadable on-device artifact.
-2. **The 14-day Premium Trial does *not* unlock it.** Starting the trial upgraded the plan and the "upgrade" prompt disappeared, but the weights-download still returned the plan-tier error. Export sits behind the paid tier, not the trial.
+2. **A trial upgrade did *not* unlock it.** Starting a trial upgraded the plan and the "upgrade" prompt disappeared, but the weights-download still returned the plan-tier error — export sits behind the paid (Core) tier, not a trial.
 
 ### Build-vs-buy economics
-It's a pricing/packaging signal worth understanding. Roboflow gives away the expensive part (GPU training + the hosted-API endpoint) and monetises the artifact you need for **offline, zero-marginal-cost, on-device** deployment. That's a rational fence: the customers who need a bundled edge model are exactly the ones running at scale (a field-station fleet of in-cab rigs, thousands of edge devices) where per-inference hosted-API costs would dominate and a seat/plan fee is trivial. The free tier is sized for *prototyping the model*; the paid tier is sized for *shipping it to the edge*.
+It's a pricing/packaging signal worth understanding — and it's really **two fences, not one**. Roboflow gives away the expensive compute (GPU training + the hosted-API endpoint) on the free **Public** tier, but:
+
+- **Private data + downloadable weights** sit behind **Core** (~$79/mo annual, $99 monthly). On Public, everything you upload is public on Roboflow Universe and you can't pull the weights — so any customer with *proprietary* imagery (the breeding customer's maize-stand data is the canonical case) is on a paid tier from day one, *export aside*. That **privacy fence**, not the CoreML artifact, is often the real reason an enterprise pays.
+- A **commercial license to run Roboflow Inference on the edge** sits behind **Enterprise** — so "ship it to a fleet of devices" is an Enterprise conversation, which is exactly where per-inference hosted cost vs. a flat license tips in the platform's favour (thousands of edge devices make the plan fee trivial against per-call costs).
+
+So the free tier is sized for *prototyping on public data*; Core unlocks *private models + the artifact*; Enterprise unlocks *commercial edge deployment at scale*. The fence is rational — it tracks the point where a CV project becomes worth real money.
 
 ### The pivot: open-source rfdetr
 Rather than pay for a demo — or, worse, try to intercept the paywalled download (which wouldn't work, and would be a ToS violation) — we train RF-DETR ourselves with the **open-source `rf-detr` package (Apache-2.0)** and export the model ourselves. Same architecture, our own dataset, Roboflow's own open-source tooling: $0 and fully sanctioned. Details in [`training-setup.md`](./training-setup.md).
