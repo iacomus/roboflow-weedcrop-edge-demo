@@ -471,35 +471,16 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 
     //Starts upload flow for if a user wants to upload the camera frame where an incorrect image classification occured
     @IBAction func uploadImage(_ sender: Any) {
-
-        //Capture the current pixel buffer of the camera and convert it an image
-        guard let pixelBuffer = currentPixelBuffer else {
-            return
-        }
-
-        guard let capturedImage = UIImage(pixelBuffer: pixelBuffer) else {
-            return
-        }
-
+        // Capture the current camera frame, then confirm via a proper sheet
+        // (UIAlertController can't host the image preview without overflowing).
+        guard let pixelBuffer = currentPixelBuffer,
+              let capturedImage = UIImage(pixelBuffer: pixelBuffer) else { return }
         let rotatedImage = capturedImage.rotateImage(orientation: .down)
 
-        let alert = UIAlertController(title: "Incorrect count?", message: "You've captured an image of this wrong count. Upload it to the open source dataset to improve this model.", preferredStyle: .alert)
-        let imageView = UIImageView(frame: CGRect(x: 10, y: 100, width: 250, height: 230))
-        imageView.image = rotatedImage
-        alert.view.addSubview(imageView)
-        let height = NSLayoutConstraint(item: alert.view!, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .notAnAttribute, multiplier: 1, constant: 375)
-        let width = NSLayoutConstraint(item: alert.view!, attribute: .width, relatedBy: .equal, toItem: nil, attribute: .notAnAttribute, multiplier: 1, constant: 250)
-        alert.view.addConstraint(height)
-        alert.view.addConstraint(width)
-
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { (_) in
-        }))
-        alert.addAction(UIAlertAction(title: "Upload", style: .default, handler: { [self] (_) in
-            //Upload the captured image to your dataset
-            upload(image: rotatedImage)
-        }))
-
-        self.present(alert, animated: true, completion: nil)
+        let confirm = UploadConfirmViewController(image: rotatedImage) { [weak self] in
+            self?.upload(image: rotatedImage)
+        }
+        present(confirm, animated: true)
     }
 
     //Uploads the incorrect classification frame

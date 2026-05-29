@@ -28,6 +28,7 @@
 		DE7EC700000000000000C002 /* EdgeInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000C001 /* EdgeInferenceProvider.swift */; };
 		DE7EC700000000000000D002 /* CloudInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000D001 /* CloudInferenceProvider.swift */; };
 		DE7EC700000000000000E002 /* CountCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000E001 /* CountCardView.swift */; };
+		DE7EC700000000000000F002 /* UploadConfirmViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000F001 /* UploadConfirmViewController.swift */; };
 		DE7EC700000000000000A102 /* DetectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000A101 /* DetectionTests.swift */; };
 		DE7EC700000000000000B102 /* EdgeDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000B101 /* EdgeDecodeTests.swift */; };
 		DE7EC700000000000000C102 /* CloudParseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7EC700000000000000C101 /* CloudParseTests.swift */; };
@@ -83,6 +84,7 @@
 		DE7EC700000000000000C001 /* EdgeInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeInferenceProvider.swift; sourceTree = "<group>"; };
 		DE7EC700000000000000D001 /* CloudInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudInferenceProvider.swift; sourceTree = "<group>"; };
 		DE7EC700000000000000E001 /* CountCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountCardView.swift; sourceTree = "<group>"; };
+		DE7EC700000000000000F001 /* UploadConfirmViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadConfirmViewController.swift; sourceTree = "<group>"; };
 		DE7EC700000000000000A101 /* DetectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionTests.swift; sourceTree = "<group>"; };
 		DE7EC700000000000000B101 /* EdgeDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeDecodeTests.swift; sourceTree = "<group>"; };
 		DE7EC700000000000000C101 /* CloudParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudParseTests.swift; sourceTree = "<group>"; };
@@ -177,6 +179,7 @@
 				DE7EC700000000000000C001 /* EdgeInferenceProvider.swift */,
 				DE7EC700000000000000D001 /* CloudInferenceProvider.swift */,
 				DE7EC700000000000000E001 /* CountCardView.swift */,
+				DE7EC700000000000000F001 /* UploadConfirmViewController.swift */,
 				E4B079D928CE930C00A2237F /* Main.storyboard */,
 				E4B079DC28CE931000A2237F /* Assets.xcassets */,
 				E4B079DE28CE931000A2237F /* LaunchScreen.storyboard */,
@@ -465,6 +468,7 @@
 				DE7EC700000000000000C002 /* EdgeInferenceProvider.swift in Sources */,
 				DE7EC700000000000000D002 /* CloudInferenceProvider.swift in Sources */,
 				DE7EC700000000000000E002 /* CountCardView.swift in Sources */,
+				DE7EC700000000000000F002 /* UploadConfirmViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
