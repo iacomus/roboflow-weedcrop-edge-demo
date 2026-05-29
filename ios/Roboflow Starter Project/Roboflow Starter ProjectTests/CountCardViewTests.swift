@@ -6,8 +6,8 @@ final class CountCardViewTests: XCTestCase {
         let card = CountCardView(frame: .zero)
         card.update(crops: 12, weeds: 5)
         XCTAssertEqual(card.cropValueLabel.text, "12")
-        XCTAssertEqual(card.cropCaptionLabel.text, "Crops detected")
-        XCTAssertEqual(card.weedLabel.text, "Weeds 5 · excluded")
+        XCTAssertEqual(card.cropCaptionLabel.text, "🌱 Crops detected")
+        XCTAssertEqual(card.weedLabel.text, "🌾 Weeds 5 · excluded")
     }
 
     func test_showEmpty_blanksValues() {

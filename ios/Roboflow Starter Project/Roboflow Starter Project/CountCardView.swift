@@ -23,7 +23,7 @@ final class CountCardView: UIView {
         cropValueLabel.textColor = .systemGreen
         cropCaptionLabel.font = .systemFont(ofSize: 12, weight: .medium)
         cropCaptionLabel.textColor = .white
-        cropCaptionLabel.text = "Crops detected"
+        cropCaptionLabel.text = "🌱 Crops detected"
         weedLabel.font = .systemFont(ofSize: 13, weight: .regular)
         weedLabel.textColor = UIColor.white.withAlphaComponent(0.7)
 
@@ -48,12 +48,12 @@ final class CountCardView: UIView {
 
     func update(crops: Int, weeds: Int) {
         cropValueLabel.text = "\(crops)"
-        weedLabel.text = "Weeds \(weeds) · excluded"
+        weedLabel.text = "🌾 Weeds \(weeds) · excluded"
     }
 
     /// Cloud-offline / no-data state.
     func showEmpty() {
         cropValueLabel.text = "—"
-        weedLabel.text = "Weeds — · excluded"
+        weedLabel.text = "🌾 Weeds — · excluded"
     }
 }
