@@ -74,6 +74,8 @@ The same RF-DETR model, the same frame, two deployment paths — switched live w
 
 https://github.com/user-attachments/assets/85932040-14c1-4d5c-9691-686a2c9e2ac2
 
+*In the clip: **Edge** runs on-device at ~24 FPS → flip to **Cloud** (Roboflow hosted API, slower per-frame round-trips) → turn **Wi-Fi off** and Cloud drops to `offline` while the on-device model keeps detecting without missing a beat → switch back to **Edge**, uninterrupted. The connectivity argument for edge, made on screen rather than on a slide.*
+
 | Edge — on-device CoreML | Cloud — Roboflow hosted API |
 |---|---|
 | ![Edge mode: on-device CoreML inference at 23 FPS](assets/screenshots/edge-inference.png) | ![Cloud mode: Roboflow hosted API, 154 ms round-trip](assets/screenshots/cloud-inference.png) |
