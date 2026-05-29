@@ -2,6 +2,29 @@
 
 Notes on the technical decisions made while building this demo, and the reasoning behind each — the kind you'd surface to a customer.
 
+## Key decisions at a glance
+
+| Decision | Choice | Why (short) |
+|---|---|---|
+| Dataset version | Forked `roboflow-100/weed-crop-aerial` (RF100 snapshot) | Better-characterised baseline (79.8% mAP) + benchmark provenance, over the untagged active-workspace copy |
+| Model architecture | RF-DETR Small | It's what loads through the Swift SDK's CoreML path (YOLOv5 doesn't); Roboflow's current edge model; optimised for 512×512 |
+| Demo edge target | iPhone (not Pi / Jetson) | Most accessible edge target; matches the field-scout persona; Pi 3 too slow at 1-3 FPS |
+| Train + export | Open-source `rfdetr` + self-converted CoreML (not the paid hosted export) | $0 and ToS-clean — and doing the conversion myself is how I learned where the build-vs-buy fence sits |
+| On-device runtime | Bundled CoreML via Vision (not the SDK loader, not ONNX) | SDK has no local-file load path (+ a download-parse bug); CoreML runs on the Neural Engine for real-time |
+| Edge vs. cloud | Both, behind a live in-app toggle | The trade-off (latency-to-action, connectivity, volume) is a per-use-case decision, shown not asserted |
+
+Each is expanded below. The detail sections carry the trade-off tables and the evidence.
+
+## Assumptions, and what I'd validate in real discovery
+
+This is a demo on public data, not a client deliverable — so it makes assumptions a real engagement would test *first*, before committing a customer to anything:
+
+- **The dataset transfers.** The public weed/crop set is a visible proxy for proprietary maize-stand imagery. The original engagement is the cautionary tale (a working sunflower detector broke on maize), so step one in a real engagement isn't "fork and ship" — it's collect a small field sample and **measure out-of-distribution generalisation** before trusting any of this.
+- **A handheld phone stands in for the rig.** The demo counts per-frame from a phone; the production capture is a fixed-mount rig (or a drone) with controlled geometry and lighting. I'd validate the **capture modality, ground-sample-distance, and frame-to-frame repeatability** — because for a *breeding* comparison, measurement variance can swamp the 3% yield signal.
+- **The accuracy bar is unmodelled.** Confidence threshold (0.4), single checkpoint, no temporal smoothing. I'd pin these to the customer's actual precision/recall requirement **per growth stage** (2-leaf vs 6-8-leaf occlusion are different problems).
+- **The edge target follows the customer, not the demo.** iPhone here; the real target (in-cab Jetson, drone) follows their hardware budget and ops pattern — a discovery question, not a default.
+- **Commercial/data constraints decide the tier.** A customer with proprietary imagery needs private data/models (Core); a device fleet needs the Enterprise edge-Inference license. Those constraints, not the tech, often set the plan.
+
 ## Dataset: `roboflow-100/weed-crop-aerial`
 
 Picked from the [Roboflow 100 benchmark](https://github.com/roboflow-ai/roboflow-100-benchmark) — Roboflow's Intel-sponsored curated suite of 100 datasets used to evaluate model generalisability.
